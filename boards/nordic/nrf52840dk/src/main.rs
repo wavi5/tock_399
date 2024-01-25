@@ -79,7 +79,6 @@ use capsules_extra::net::ipv6::ip_utils::IPAddr;
 use kernel::component::Component;
 use kernel::hil::led::LedLow;
 use kernel::hil::time::Counter;
-use kernel::hil::uart;
 #[allow(unused_imports)]
 use kernel::hil::usb::Client;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
@@ -364,21 +363,10 @@ pub unsafe fn main() {
         // reference to rtt_memory and leverage interior mutability instead.
         self::io::set_rtt_memory(&*rtt_memory_refs.get_rtt_memory_ptr());
 
-        UartChannel::Rtt(rtt_memory_refs);
+        UartChannel::Rtt(rtt_memory_refs)
     } else {
-        UartChannel::Pins(UartPins::new(UART_RTS, UART_TXD, UART_CTS, UART_RXD));
+        UartChannel::Pins(UartPins::new(UART_RTS, UART_TXD, UART_CTS, UART_RXD))
     };
-
-    //    // Creating Uart instance
-    //    let uart = kernel::hil::uart::Uart::new();
-    //
-    //    uart.configure(uart::Parameters {
-    //        baud_rate: 250000,
-    //        width: uart::Width::Eight,
-    //        stop_bits: uart::StopBits::One,
-    //        parity: uart::Parity::Even,
-    //        hw_flow_control: true,
-    //    });
 
     // Setup space to store the core kernel data structure.
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
