@@ -235,6 +235,7 @@ pub struct Platform {
     kv_driver: &'static KVDriver,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
+    life: &'static capsules_core::life::LifeDriver,
 }
 
 impl SyscallDriverLookup for Platform {
@@ -260,6 +261,7 @@ impl SyscallDriverLookup for Platform {
             capsules_core::spi_controller::DRIVER_NUM => f(Some(self.spi_controller)),
             capsules_extra::net::thread::driver::DRIVER_NUM => f(Some(self.thread_driver)),
             capsules_extra::kv_driver::DRIVER_NUM => f(Some(self.kv_driver)),
+            capsules_core::life::DRIVER_NUM => f(Some(self.life)),
             _ => f(None),
         }
     }
@@ -473,6 +475,13 @@ pub unsafe fn main() {
         LedLow::new(&nrf52840_peripherals.gpio_port[LED3_PIN]),
         LedLow::new(&nrf52840_peripherals.gpio_port[LED4_PIN]),
     ));
+
+    // let life: &'static capsules_core::life::LifeDriver =
+    //     components::life::LifeComponent::new().finalize(());
+    let life = kernel::static_init!(
+        capsules_core::life::LifeDriver,
+        capsules_core::life::LifeDriver::new()
+    );
 
     //--------------------------------------------------------------------------
     // TIMER
@@ -868,19 +877,19 @@ pub unsafe fn main() {
     // ctap.enable();
     // ctap.attach();
 
-    // // Keyboard HID Example
-    // type UsbHw = nrf52840::usbd::Usbd<'static>;
-    // let usb_device = &nrf52840_peripherals.usbd;
-
+    // Keyboard HID Example
+    //
     // let (keyboard_hid, keyboard_hid_driver) = components::keyboard_hid::KeyboardHidComponent::new(
     //     board_kernel,
     //     capsules_core::driver::NUM::KeyboardHid as usize,
-    //     usb_device,
+    //     &nrf52840_peripherals.usbd,
     //     0x1915, // Nordic Semiconductor
     //     0x503a,
     //     strings,
     // )
-    // .finalize(components::keyboard_hid_component_static!(UsbHw));
+    // .finalize(components::keyboard_hid_component_static!(
+    //     nrf52840::usbd::Usbd
+    // ));
 
     // keyboard_hid.enable();
     // keyboard_hid.attach();
@@ -899,6 +908,7 @@ pub unsafe fn main() {
         pconsole,
         console,
         led,
+        life,
         gpio,
         rng,
         adc,

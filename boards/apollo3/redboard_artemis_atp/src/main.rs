@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-//! Board file for SparkFun Redboard Artemis ATP
+//! Board file for SparkFun Redboard Artemis Nano
 //!
-//! - <https://www.sparkfun.com/products/15442>
+//! - <https://www.sparkfun.com/products/15443>
 
 #![no_std]
 // Disable this attribute when documenting, as a workaround for
@@ -16,13 +16,13 @@
 #![reexport_test_harness_main = "test_main"]
 
 use apollo3::chip::Apollo3DefaultPeripherals;
-use capsules_core::i2c_master_slave_driver::I2CMasterSlaveDriver;
 use capsules_core::virtualizers::virtual_alarm::MuxAlarm;
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
+use components::bme280::Bme280Component;
+use components::ccs811::Ccs811Component;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil::i2c::I2CMaster;
-use kernel::hil::i2c::I2CSlave;
 use kernel::hil::led::LedHigh;
 use kernel::hil::time::Counter;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
@@ -57,21 +57,34 @@ static mut PERIPHERALS: Option<&'static Apollo3DefaultPeripherals> = None;
 static mut BOARD: Option<&'static kernel::Kernel> = None;
 // Test access to platform
 #[cfg(test)]
-static mut PLATFORM: Option<&'static RedboardArtemisAtp> = None;
+static mut PLATFORM: Option<&'static RedboardArtemisNano> = None;
 // Test access to main loop capability
 #[cfg(test)]
 static mut MAIN_CAP: Option<&dyn kernel::capabilities::MainLoopCapability> = None;
 // Test access to alarm
 static mut ALARM: Option<&'static MuxAlarm<'static, apollo3::stimer::STimer<'static>>> = None;
+// Test access to sensors
+static mut BME280: Option<
+    &'static capsules_extra::bme280::Bme280<
+        'static,
+        capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, apollo3::iom::Iom<'static>>,
+    >,
+> = None;
+static mut CCS811: Option<&'static capsules_extra::ccs811::Ccs811<'static>> = None;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
+type BME280Sensor = components::bme280::Bme280ComponentType<
+    capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, apollo3::iom::Iom<'static>>,
+>;
+type TemperatureDriver = components::temperature::TemperatureComponentType<BME280Sensor>;
+
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
-struct RedboardArtemisAtp {
+struct RedboardArtemisNano {
     alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, apollo3::stimer::STimer<'static>>,
@@ -83,12 +96,13 @@ struct RedboardArtemisAtp {
     >,
     gpio: &'static capsules_core::gpio::GPIO<'static, apollo3::gpio::GpioPin<'static>>,
     console: &'static capsules_core::console::Console<'static>,
-    i2c_master_slave: &'static capsules_core::i2c_master_slave_driver::I2CMasterSlaveDriver<
+    i2c_master:
+        &'static capsules_core::i2c_master::I2CMasterDriver<'static, apollo3::iom::Iom<'static>>,
+    spi_controller: &'static capsules_core::spi_controller::Spi<
         'static,
-        capsules_core::i2c_master_slave_combo::I2CMasterSlaveCombo<
+        capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
             'static,
             apollo3::iom::Iom<'static>,
-            apollo3::ios::Ios<'static>,
         >,
     >,
     ble_radio: &'static capsules_extra::ble_advertising_driver::BLE<
@@ -96,12 +110,15 @@ struct RedboardArtemisAtp {
         apollo3::ble::Ble<'static>,
         VirtualMuxAlarm<'static, apollo3::stimer::STimer<'static>>,
     >,
+    temperature: &'static TemperatureDriver,
+    humidity: &'static capsules_extra::humidity::HumiditySensor<'static>,
+    air_quality: &'static capsules_extra::air_quality::AirQualitySensor<'static>,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
-impl SyscallDriverLookup for RedboardArtemisAtp {
+impl SyscallDriverLookup for RedboardArtemisNano {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
@@ -111,14 +128,18 @@ impl SyscallDriverLookup for RedboardArtemisAtp {
             capsules_core::led::DRIVER_NUM => f(Some(self.led)),
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules_core::console::DRIVER_NUM => f(Some(self.console)),
-            capsules_core::i2c_master_slave_driver::DRIVER_NUM => f(Some(self.i2c_master_slave)),
+            capsules_core::i2c_master::DRIVER_NUM => f(Some(self.i2c_master)),
+            capsules_core::spi_controller::DRIVER_NUM => f(Some(self.spi_controller)),
             capsules_extra::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
+            capsules_extra::temperature::DRIVER_NUM => f(Some(self.temperature)),
+            capsules_extra::humidity::DRIVER_NUM => f(Some(self.humidity)),
+            capsules_extra::air_quality::DRIVER_NUM => f(Some(self.air_quality)),
             _ => f(None),
         }
     }
 }
 
-impl KernelResources<apollo3::chip::Apollo3<Apollo3DefaultPeripherals>> for RedboardArtemisAtp {
+impl KernelResources<apollo3::chip::Apollo3<Apollo3DefaultPeripherals>> for RedboardArtemisNano {
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
@@ -159,7 +180,7 @@ impl KernelResources<apollo3::chip::Apollo3<Apollo3DefaultPeripherals>> for Redb
 #[inline(never)]
 unsafe fn setup() -> (
     &'static kernel::Kernel,
-    &'static RedboardArtemisAtp,
+    &'static RedboardArtemisNano,
     &'static apollo3::chip::Apollo3<Apollo3DefaultPeripherals>,
     &'static Apollo3DefaultPeripherals,
 ) {
@@ -181,21 +202,22 @@ unsafe fn setup() -> (
     // Power up components
     pwr_ctrl.enable_uart0();
     pwr_ctrl.enable_iom0();
-    pwr_ctrl.enable_iom4();
-    pwr_ctrl.enable_ios();
+    pwr_ctrl.enable_iom2();
 
     // Enable PinCfg
-    peripherals
+    let _ = &peripherals
         .gpio_port
         .enable_uart(&peripherals.gpio_port[48], &peripherals.gpio_port[49]);
-    // Enable SDA and SCL for I2C4 (exposed via Qwiic)
-    peripherals
+    // Enable SDA and SCL for I2C2 (exposed via Qwiic)
+    let _ = &peripherals
         .gpio_port
-        .enable_i2c(&peripherals.gpio_port[40], &peripherals.gpio_port[39]);
-    // Enable I2C slave device
-    peripherals
-        .gpio_port
-        .enable_i2c_slave(&peripherals.gpio_port[1], &peripherals.gpio_port[0]);
+        .enable_i2c(&peripherals.gpio_port[25], &peripherals.gpio_port[27]);
+    // Enable Main SPI
+    let _ = &peripherals.gpio_port.enable_spi(
+        &peripherals.gpio_port[5],
+        &peripherals.gpio_port[7],
+        &peripherals.gpio_port[6],
+    );
 
     // Configure kernel debug gpios as early as possible
     kernel::debug::assign_gpios(
@@ -260,55 +282,80 @@ unsafe fn setup() -> (
         .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
-    let i2c_master_slave_combo = static_init!(
-        capsules_core::i2c_master_slave_combo::I2CMasterSlaveCombo<
-            'static,
-            apollo3::iom::Iom<'static>,
-            apollo3::ios::Ios<'static>,
-        >,
-        capsules_core::i2c_master_slave_combo::I2CMasterSlaveCombo::new(
-            &peripherals.iom4,
-            &peripherals.ios
-        )
+    // Init the I2C device attached via Qwiic
+    let i2c_master_buffer = static_init!(
+        [u8; capsules_core::i2c_master::BUFFER_LENGTH],
+        [0; capsules_core::i2c_master::BUFFER_LENGTH]
     );
-
-    let i2c_master_buffer = static_init!([u8; 32], [0; 32]);
-    let i2c_slave_buffer1 = static_init!([u8; 32], [0; 32]);
-    let i2c_slave_buffer2 = static_init!([u8; 32], [0; 32]);
-
-    let i2c_master_slave = static_init!(
-        I2CMasterSlaveDriver<
-            capsules_core::i2c_master_slave_combo::I2CMasterSlaveCombo<
-                'static,
-                apollo3::iom::Iom<'static>,
-                apollo3::ios::Ios<'static>,
-            >,
-        >,
-        I2CMasterSlaveDriver::new(
-            i2c_master_slave_combo,
+    let i2c_master = static_init!(
+        capsules_core::i2c_master::I2CMasterDriver<'static, apollo3::iom::Iom<'static>>,
+        capsules_core::i2c_master::I2CMasterDriver::new(
+            &peripherals.iom2,
             i2c_master_buffer,
-            i2c_slave_buffer1,
-            i2c_slave_buffer2,
             board_kernel.create_grant(
-                capsules_core::i2c_master_slave_driver::DRIVER_NUM,
+                capsules_core::i2c_master::DRIVER_NUM,
                 &memory_allocation_cap
-            ),
+            )
         )
     );
 
-    i2c_master_slave_combo.set_master_client(i2c_master_slave);
-    i2c_master_slave_combo.set_slave_client(i2c_master_slave);
+    let _ = &peripherals.iom2.set_master_client(i2c_master);
+    let _ = &peripherals.iom2.enable();
 
-    peripherals.iom4.enable();
+    let mux_i2c = components::i2c::I2CMuxComponent::new(&peripherals.iom2, None)
+        .finalize(components::i2c_mux_component_static!(apollo3::iom::Iom));
+
+    let bme280 = Bme280Component::new(mux_i2c, 0x77)
+        .finalize(components::bme280_component_static!(apollo3::iom::Iom));
+    let temperature = components::temperature::TemperatureComponent::new(
+        board_kernel,
+        capsules_extra::temperature::DRIVER_NUM,
+        bme280,
+    )
+    .finalize(components::temperature_component_static!(BME280Sensor));
+    let humidity = components::humidity::HumidityComponent::new(
+        board_kernel,
+        capsules_extra::humidity::DRIVER_NUM,
+        bme280,
+    )
+    .finalize(components::humidity_component_static!());
+    BME280 = Some(bme280);
+
+    let ccs811 = Ccs811Component::new(mux_i2c, 0x5B)
+        .finalize(components::ccs811_component_static!(apollo3::iom::Iom));
+    let air_quality = components::air_quality::AirQualityComponent::new(
+        board_kernel,
+        capsules_extra::temperature::DRIVER_NUM,
+        ccs811,
+    )
+    .finalize(components::air_quality_component_static!());
+    CCS811 = Some(ccs811);
+
+    // Init the SPI controller
+    let mux_spi = components::spi::SpiMuxComponent::new(&peripherals.iom0).finalize(
+        components::spi_mux_component_static!(apollo3::iom::Iom<'static>),
+    );
+
+    // The IOM0 expects an auto chip select on pin D11 or D15, neither of
+    // which are broken out on the board. So the CS control must be manual
+    let spi_controller = components::spi::SpiSyscallComponent::new(
+        board_kernel,
+        mux_spi,
+        &peripherals.gpio_port[35], // A14
+        capsules_core::spi_controller::DRIVER_NUM,
+    )
+    .finalize(components::spi_syscall_component_static!(
+        apollo3::iom::Iom<'static>
+    ));
 
     // Setup BLE
     mcu_ctrl.enable_ble();
     clkgen.enable_ble();
     pwr_ctrl.enable_ble();
-    peripherals.ble.setup_clocks();
+    let _ = &peripherals.ble.setup_clocks();
     mcu_ctrl.reset_ble();
-    peripherals.ble.power_up();
-    peripherals.ble.ble_initialise();
+    let _ = &peripherals.ble.power_up();
+    let _ = &peripherals.ble.ble_initialise();
 
     let ble_radio = components::ble::BLEComponent::new(
         board_kernel,
@@ -342,15 +389,19 @@ unsafe fn setup() -> (
 
     let systick = cortexm4::systick::SysTick::new_with_calibration(48_000_000);
 
-    let artemis_atp = static_init!(
-        RedboardArtemisAtp,
-        RedboardArtemisAtp {
+    let artemis_nano = static_init!(
+        RedboardArtemisNano,
+        RedboardArtemisNano {
             alarm,
             led,
             gpio,
             console,
-            i2c_master_slave,
+            i2c_master,
+            spi_controller,
             ble_radio,
+            temperature,
+            humidity,
+            air_quality,
             scheduler,
             systick,
         }
@@ -382,7 +433,7 @@ unsafe fn setup() -> (
         debug!("{:?}", err);
     });
 
-    (board_kernel, artemis_atp, chip, peripherals)
+    (board_kernel, artemis_nano, chip, peripherals)
 }
 
 /// Main function.
