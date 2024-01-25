@@ -2,410 +2,446 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-//! UART driver.
+//! Universal asynchronous receiver/transmitter with EasyDMA (UARTE)
+//!
+//! Author
+//! -------------------
+//!
+//! * Author: Niklas Adolfsson <niklasadolfsson1@gmail.com>
+//! * Date: March 10 2018
 
+use core;
 use core::cell::Cell;
-use kernel::ErrorCode;
-
-use kernel::hil;
+use core::cmp::min;
+use kernel::hil::uart;
 use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::cells::TakeCell;
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
+use kernel::utilities::registers::interfaces::{Readable, Writeable};
+use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::utilities::StaticRef;
+use kernel::ErrorCode;
+use nrf5x::pinmux;
 
-pub const UART0_BASE: StaticRef<UartRegisters> =
-    unsafe { StaticRef::new(0x6000_0000 as *const UartRegisters) };
+const UARTE_MAX_BUFFER_SIZE: u32 = 0xff;
 
-register_structs! {
-    pub UartRegisters {
-        (0x000 => fifo: ReadWrite<u32, FIFO::Register>),
-        (0x004 => int_raw: ReadWrite<u32, INT::Register>),
-        (0x008 => int_st: ReadWrite<u32, INT::Register>),
-        (0x00C => int_ena: ReadWrite<u32, INT::Register>),
-        (0x010 => int_clr: ReadWrite<u32, INT::Register>),
-        (0x014 => clkdiv: ReadWrite<u32, CLKDIV::Register>),
-        (0x018 => autobaud: ReadWrite<u32, AUTOBAUD::Register>),
-        (0x01C => status: ReadWrite<u32, STATUS::Register>),
-        (0x020 => conf0: ReadWrite<u32, CONF0::Register>),
-        (0x024 => conf1: ReadWrite<u32, CONF1::Register>),
-        (0x028 => lowpulse: ReadWrite<u32, LOWPULSE::Register>),
-        (0x02C => highpulse: ReadWrite<u32, HIGHPULSE::Register>),
-        (0x030 => rxd_cnt: ReadWrite<u32, RXD_CNT::Register>),
-        (0x034 => flow_config: ReadWrite<u32, FLOW_CONFIG::Register>),
-        (0x038 => sleep_conf: ReadWrite<u32, SLEEP_CONF::Register>),
-        (0x03C => swfc_conf: ReadWrite<u32, SWFC_CONF::Register>),
-        (0x040 => idle_conf: ReadWrite<u32, IDLE_CONF::Register>),
-        (0x044 => rs485_conf: ReadWrite<u32, RS485_CONF::Register>),
-        (0x048 => at_cmd_precnt: ReadWrite<u32, AT_CMD_PRECNT::Register>),
-        (0x04C => at_cmd_postcnt: ReadWrite<u32, AT_CMD_POSTCNT::Register>),
-        (0x050 => at_cmd_gaptout: ReadWrite<u32, AT_CMD_GAPTOUT::Register>),
-        (0x054 => at_cmd_char: ReadWrite<u32, AT_CMD_CHAR::Register>),
-        (0x058 => mem_conf: ReadWrite<u32, MEM_CONF::Register>),
-        (0x05C => _reserved0),
-        (0x064 => mem_cnt_status: ReadWrite<u32, MEM_CNT_STATUS::Register>),
-        (0x068 => pospulse: ReadWrite<u32, POSPULSE::Register>),
-        (0x06C => negpulse: ReadWrite<u32, NEGPULSE::Register>),
-        (0x070 => @END),
-    }
+static mut BYTE: u8 = 0;
+
+pub const UARTE0_BASE: StaticRef<UarteRegisters> =
+    unsafe { StaticRef::new(0x40002000 as *const UarteRegisters) };
+
+#[repr(C)]
+pub struct UarteRegisters {
+    task_startrx: WriteOnly<u32, Task::Register>,
+    task_stoprx: WriteOnly<u32, Task::Register>,
+    task_starttx: WriteOnly<u32, Task::Register>,
+    task_stoptx: WriteOnly<u32, Task::Register>,
+    _reserved1: [u32; 7],
+    task_flush_rx: WriteOnly<u32, Task::Register>,
+    _reserved2: [u32; 52],
+    event_cts: ReadWrite<u32, Event::Register>,
+    event_ncts: ReadWrite<u32, Event::Register>,
+    _reserved3: [u32; 2],
+    event_endrx: ReadWrite<u32, Event::Register>,
+    _reserved4: [u32; 3],
+    event_endtx: ReadWrite<u32, Event::Register>,
+    event_error: ReadWrite<u32, Event::Register>,
+    _reserved6: [u32; 7],
+    event_rxto: ReadWrite<u32, Event::Register>,
+    _reserved7: [u32; 1],
+    event_rxstarted: ReadWrite<u32, Event::Register>,
+    event_txstarted: ReadWrite<u32, Event::Register>,
+    _reserved8: [u32; 1],
+    event_txstopped: ReadWrite<u32, Event::Register>,
+    _reserved9: [u32; 41],
+    shorts: ReadWrite<u32, Shorts::Register>,
+    _reserved10: [u32; 64],
+    intenset: ReadWrite<u32, Interrupt::Register>,
+    intenclr: ReadWrite<u32, Interrupt::Register>,
+    _reserved11: [u32; 93],
+    errorsrc: ReadWrite<u32, ErrorSrc::Register>,
+    _reserved12: [u32; 31],
+    enable: ReadWrite<u32, Uart::Register>,
+    _reserved13: [u32; 1],
+    pselrts: ReadWrite<u32, Psel::Register>,
+    pseltxd: ReadWrite<u32, Psel::Register>,
+    pselcts: ReadWrite<u32, Psel::Register>,
+    pselrxd: ReadWrite<u32, Psel::Register>,
+    _reserved14: [u32; 3],
+    baudrate: ReadWrite<u32, Baudrate::Register>,
+    _reserved15: [u32; 3],
+    rxd_ptr: ReadWrite<u32, Pointer::Register>,
+    rxd_maxcnt: ReadWrite<u32, Counter::Register>,
+    rxd_amount: ReadOnly<u32, Counter::Register>,
+    _reserved16: [u32; 1],
+    txd_ptr: ReadWrite<u32, Pointer::Register>,
+    txd_maxcnt: ReadWrite<u32, Counter::Register>,
+    txd_amount: ReadOnly<u32, Counter::Register>,
+    _reserved17: [u32; 7],
+    config: ReadWrite<u32, Config::Register>,
 }
 
-register_bitfields![u32,
-    FIFO [
-        RXFIFO_RD_BYTE OFFSET(0) NUMBITS(8) [],
+register_bitfields! [u32,
+    /// Start task
+    Task [
+        ENABLE OFFSET(0) NUMBITS(1)
     ],
-    INT [
-        RXFIFO_FULL_INT OFFSET(0) NUMBITS(1) [],
-        TXFIFO_EMPTY_INT OFFSET(1) NUMBITS(1) [],
-        PARITY_ERR_INT OFFSET(2) NUMBITS(1) [],
-        FRM_ERR_INT OFFSET(3) NUMBITS(1) [],
-        RXFIFO_OVF_INT OFFSET(4) NUMBITS(1) [],
-        DSR_CHG_INT OFFSET(5) NUMBITS(1) [],
-        CTS_CHG_INT OFFSET(6) NUMBITS(1) [],
-        BRK_DET_INT OFFSET(7) NUMBITS(1) [],
-        RXFIFO_TOUT_INT OFFSET(8) NUMBITS(1) [],
-        SW_XON_INT OFFSET(9) NUMBITS(1) [],
-        SW_XOFF_INT OFFSET(10) NUMBITS(1) [],
-        GLITCH_DET_INT OFFSET(11) NUMBITS(1) [],
-        TX_BRK_DONE_INT OFFSET(12) NUMBITS(1) [],
-        TX_BRK_IDLE_DONE_INT OFFSET(13) NUMBITS(1) [],
-        TX_DONE_INT OFFSET(14) NUMBITS(1) [],
-        RS485_PARITY_ERR_INT OFFSET(15) NUMBITS(1) [],
-        RS485_FRM_ERR_INT OFFSET(16) NUMBITS(1) [],
-        RS485_CLASH_INT OFFSET(17) NUMBITS(1) [],
-        AT_CMD_CHAR_DET_INT OFFSET(18) NUMBITS(1) [],
+
+    /// Read event
+    Event [
+        READY OFFSET(0) NUMBITS(1)
     ],
-    CLKDIV [
-        CLKDIV OFFSET(0) NUMBITS(20) [],
-        CLKDIV_FRAG OFFSET(20) NUMBITS(4) [],
+
+    /// Shortcuts
+    Shorts [
+        // Shortcut between ENDRX and STARTRX
+        ENDRX_STARTRX OFFSET(5) NUMBITS(1),
+        // Shortcut between ENDRX and STOPRX
+        ENDRX_STOPRX OFFSET(6) NUMBITS(1)
     ],
-    AUTOBAUD [
-        AUTOBAUD_EN OFFSET(0) NUMBITS(1) [],
-        GLITCH_FILT OFFSET(8) NUMBITS(8) [],
+
+    /// UART Interrupts
+    Interrupt [
+        CTS OFFSET(0) NUMBITS(1),
+        NCTS OFFSET(1) NUMBITS(1),
+        ENDRX OFFSET(4) NUMBITS(1),
+        ENDTX OFFSET(8) NUMBITS(1),
+        ERROR OFFSET(9) NUMBITS(1),
+        RXTO OFFSET(17) NUMBITS(1),
+        RXSTARTED OFFSET(19) NUMBITS(1),
+        TXSTARTED OFFSET(20) NUMBITS(1),
+        TXSTOPPED OFFSET(22) NUMBITS(1)
     ],
-    STATUS [
-        RXFIFO_CNT OFFSET(0) NUMBITS(8) [],
-        ST_URX_OUT OFFSET(8) NUMBITS(4) [],
-        DSRN OFFSET(13) NUMBITS(1) [],
-        CTSN OFFSET(14) NUMBITS(1) [],
-        RXD OFFSET(15) NUMBITS(1) [],
-        TXFIFO_CNT OFFSET(16) NUMBITS(8) [],
-        ST_UTX_OUT OFFSET(24) NUMBITS(4) [],
-        DTRN OFFSET(29) NUMBITS(1) [],
-        RTSN OFFSET(30) NUMBITS(1) [],
-        TXD OFFSET(31) NUMBITS(1) [],
+
+    /// UART Errors
+    ErrorSrc [
+        OVERRUN OFFSET(0) NUMBITS(1),
+        PARITY OFFSET(1) NUMBITS(1),
+        FRAMING OFFSET(2) NUMBITS(1),
+        BREAK OFFSET(3) NUMBITS(1)
     ],
-    CONF0 [
-        PARITY OFFSET(0) NUMBITS(1) [],
-        PARITY_EN OFFSET(1) NUMBITS(1) [],
-        BIT_NUM OFFSET(2) NUMBITS(2) [],
-        STOP_BIT_NUM OFFSET(4) NUMBITS(2) [],
-        SW_RTS OFFSET(6) NUMBITS(1) [],
-        SW_DTR OFFSET(7) NUMBITS(1) [],
-        TXD_BRK OFFSET(8) NUMBITS(1) [],
-        IRDA_DPLX OFFSET(9) NUMBITS(1) [],
-        IRDA_TX_EN OFFSET(10) NUMBITS(1) [],
-        IRDA_WCTL OFFSET(11) NUMBITS(1) [],
-        IRDA_TX_INV OFFSET(12) NUMBITS(1) [],
-        IRDA_RX_INV OFFSET(13) NUMBITS(1) [],
-        LOOPBACK OFFSET(14) NUMBITS(1) [],
-        TX_FLOW_EN OFFSET(15) NUMBITS(1) [],
-        IRDA_EN OFFSET(16) NUMBITS(1) [],
-        RXFIFO_RST OFFSET(17) NUMBITS(1) [],
-        TXFIFO_RST OFFSET(18) NUMBITS(1) [],
-        RXD_INV OFFSET(19) NUMBITS(1) [],
-        CTS_INV OFFSET(20) NUMBITS(1) [],
-        DSR_INV OFFSET(21) NUMBITS(1) [],
-        TXD_INV OFFSET(22) NUMBITS(1) [],
-        RTS_INV OFFSET(23) NUMBITS(1) [],
-        DTR_INV OFFSET(24) NUMBITS(1) [],
-        TICK_REF_ALWAYS_ON OFFSET(27) NUMBITS(1) [],
+
+    /// Enable UART
+    Uart [
+        ENABLE OFFSET(0) NUMBITS(4) [
+            ON = 8,
+            OFF = 0
+        ]
     ],
-    CONF1 [
-        RXFIFO_FULL_THRHD OFFSET(0) NUMBITS(7) [],
-        TXFIFO_EMPTY_THRHD OFFSET(8) NUMBITS(6) [],
-        RX_FLOW_THRHD OFFSET(16) NUMBITS(6) [],
-        RX_FLOW_EN OFFSET(23) NUMBITS(1) [],
-        RX_TOUT_THRHD OFFSET(24) NUMBITS(7) [],
-        RX_TOUT_EN OFFSET(31) NUMBITS(1) [],
+
+    /// Pin select
+    Psel [
+        // Pin number. MSB is actually the port indicator, but since we number
+        // pins sequentially the binary representation of the pin number has
+        // the port bit set correctly. So, for simplicity we just treat the
+        // pin number as a 6 bit field.
+        PIN OFFSET(0) NUMBITS(6),
+        // Connect/Disconnect
+        CONNECT OFFSET(31) NUMBITS(1)
     ],
-    LOWPULSE [
-        LOWPULSE_MIN_CNT OFFSET(0) NUMBITS(20) [],
+
+    /// Baudrate
+    Baudrate [
+        BAUDRAUTE OFFSET(0) NUMBITS(32)
     ],
-    HIGHPULSE [
-        HIGHPULSE_MIN_CNT OFFSET(0) NUMBITS(20) []
+
+    /// DMA pointer
+    Pointer [
+        POINTER OFFSET(0) NUMBITS(32)
     ],
-    RXD_CNT [
-        RXD_EDGE_CNT OFFSET(0) NUMBITS(10) [],
+
+    /// Counter value
+    Counter [
+        COUNTER OFFSET(0) NUMBITS(8)
     ],
-    FLOW_CONFIG [
-        SW_FLOW_CON_EN OFFSET(0) NUMBITS(1) [],
-        XONOFF_DEL OFFSET(1) NUMBITS(1) [],
-        FORCE_XON OFFSET(2) NUMBITS(1) [],
-        FORCE_XOFF OFFSET(3) NUMBITS(1) [],
-        SEND_XON OFFSET(4) NUMBITS(1) [],
-        SEND_XOFF OFFSET(5) NUMBITS(1) [],
-    ],
-    SLEEP_CONF [
-        ACTIVE_THRESHOLD OFFSET(0) NUMBITS(10) [],
-    ],
-    SWFC_CONF [
-        XON_THRESHOLD OFFSET(0) NUMBITS(8) [],
-        XOFF_THRESHOLD OFFSET(8) NUMBITS(8) [],
-        XON_CHAR OFFSET(16) NUMBITS(8) [],
-        XOFF_CHAR OFFSET(24) NUMBITS(8) [],
-    ],
-    IDLE_CONF [
-        RX_IDLE_THRHD OFFSET(0) NUMBITS(10) [],
-        TX_IDLE_NUM OFFSET(10) NUMBITS(10) [],
-        TX_BRK_NUM OFFSET(20) NUMBITS(8) [],
-    ],
-    RS485_CONF [
-        RS485_EN OFFSET(0) NUMBITS(1) [],
-        DL0_EN OFFSET(1) NUMBITS(1) [],
-        DL1_EN OFFSET(2) NUMBITS(1) [],
-        RS485TX_RX_EN OFFSET(3) NUMBITS(1) [],
-        RS485RXBY_TX_EN OFFSET(4) NUMBITS(1) [],
-        RS485_RX_DLY_NUM OFFSET(5) NUMBITS(1) [],
-        RS485_TX_DLY_NUM OFFSET(6) NUMBITS(4) [],
-    ],
-    AT_CMD_PRECNT [
-        PRE_IDLE_NUM OFFSET(0) NUMBITS(24) [],
-    ],
-    AT_CMD_POSTCNT [
-        POST_IDLE_NUM OFFSET(0) NUMBITS(24) [],
-    ],
-    AT_CMD_GAPTOUT [
-        RX_GAP_TOUT OFFSET(0) NUMBITS(24) [],
-    ],
-    AT_CMD_CHAR [
-        AT_CMD_CHAR_REG OFFSET(0) NUMBITS(8) [],
-        CHAR_NUM OFFSET(8) NUMBITS(8) [],
-    ],
-    MEM_CONF [
-        MEM_PD OFFSET(0) NUMBITS(1) [],
-        RX_SIZE OFFSET(3) NUMBITS(4) [],
-        TX_SIZE OFFSET(7) NUMBITS(4) [],
-        RX_FLOW_THRHD_H3 OFFSET(15) NUMBITS(3) [],
-        RX_TOUT_THRHD_H3 OFFSET(18) NUMBITS(3) [],
-        XON_THRESHOLD_H2 OFFSET(21) NUMBITS(2) [],
-        XOFF_THRESHOLD_H2 OFFSET(23) NUMBITS(2) [],
-        RX_MEM_FULL_THRHD OFFSET(25) NUMBITS(3) [],
-        TX_MEM_EMPTY_THRHD OFFSET(28) NUMBITS(3) [],
-    ],
-    MEM_CNT_STATUS [
-        RX_MEM_CNT OFFSET(0) NUMBITS(3) [],
-        TX_MEM_CNT OFFSET(3) NUMBITS(3) [],
-    ],
-    POSPULSE [
-        POSEDGE_MIN_CNT OFFSET(0) NUMBITS(20) [],
-    ],
-    NEGPULSE [
-        NEGEDGE_MIN_CNT OFFSET(0) NUMBITS(20) [],
-    ],
+
+    /// Configuration of parity and flow control
+    Config [
+        HWFC OFFSET(0) NUMBITS(1),
+        PARITY OFFSET(1) NUMBITS(3)
+    ]
 ];
 
-pub struct Uart<'a> {
-    registers: StaticRef<UartRegisters>,
-    tx_client: OptionalCell<&'a dyn hil::uart::TransmitClient>,
-    rx_client: OptionalCell<&'a dyn hil::uart::ReceiveClient>,
-
-    tx_buffer: TakeCell<'static, [u8]>,
+/// UARTE
+// It should never be instanced outside this module but because a static mutable reference to it
+// is exported outside this module it must be `pub`
+pub struct Uarte<'a> {
+    registers: StaticRef<UarteRegisters>,
+    tx_client: OptionalCell<&'a dyn uart::TransmitClient>,
+    tx_buffer: kernel::utilities::cells::TakeCell<'static, [u8]>,
     tx_len: Cell<usize>,
-    tx_index: Cell<usize>,
-
-    rx_buffer: TakeCell<'static, [u8]>,
-    rx_index: Cell<usize>,
-    rx_len: Cell<usize>,
+    tx_remaining_bytes: Cell<usize>,
+    rx_client: OptionalCell<&'a dyn uart::ReceiveClient>,
+    rx_buffer: kernel::utilities::cells::TakeCell<'static, [u8]>,
+    rx_remaining_bytes: Cell<usize>,
+    rx_abort_in_progress: Cell<bool>,
+    offset: Cell<usize>,
 }
 
 #[derive(Copy, Clone)]
-pub struct UartParams {
+pub struct UARTParams {
     pub baud_rate: u32,
 }
 
-impl<'a> Uart<'a> {
-    pub fn new(base: StaticRef<UartRegisters>) -> Uart<'a> {
-        Uart {
-            registers: base,
+impl<'a> Uarte<'a> {
+    /// Constructor
+    // This should only be constructed once
+    pub fn new(regs: StaticRef<UarteRegisters>) -> Uarte<'a> {
+        Uarte {
+            registers: regs,
             tx_client: OptionalCell::empty(),
-            rx_client: OptionalCell::empty(),
-            tx_buffer: TakeCell::empty(),
+            tx_buffer: kernel::utilities::cells::TakeCell::empty(),
             tx_len: Cell::new(0),
-            tx_index: Cell::new(0),
-            rx_buffer: TakeCell::empty(),
-            rx_index: Cell::new(0),
-            rx_len: Cell::new(0),
+            tx_remaining_bytes: Cell::new(0),
+            rx_client: OptionalCell::empty(),
+            rx_buffer: kernel::utilities::cells::TakeCell::empty(),
+            rx_remaining_bytes: Cell::new(0),
+            rx_abort_in_progress: Cell::new(false),
+            offset: Cell::new(0),
         }
     }
 
-    fn enable_tx_interrupt(&self) {
-        let regs = self.registers;
-
-        regs.int_ena.modify(
-            INT::TXFIFO_EMPTY_INT::SET
-                + INT::TX_BRK_DONE_INT::SET
-                + INT::TX_BRK_IDLE_DONE_INT::SET
-                + INT::TX_DONE_INT::SET,
+    /// Configure which pins the UART should use for txd, rxd, cts and rts
+    pub fn initialize(
+        &self,
+        txd: pinmux::Pinmux,
+        rxd: pinmux::Pinmux,
+        cts: Option<pinmux::Pinmux>,
+        rts: Option<pinmux::Pinmux>,
+    ) {
+        self.registers.pseltxd.write(Psel::PIN.val(txd.into()));
+        self.registers.pselrxd.write(Psel::PIN.val(rxd.into()));
+        cts.map_or_else(
+            || {
+                // If no CTS pin is provided, then we need to mark it as
+                // disconnected in the register.
+                self.registers.pselcts.write(Psel::CONNECT::SET);
+            },
+            |c| {
+                self.registers.pselcts.write(Psel::PIN.val(c.into()));
+            },
         );
+        rts.map_or_else(
+            || {
+                // If no RTS pin is provided, then we need to mark it as
+                // disconnected in the register.
+                self.registers.pselrts.write(Psel::CONNECT::SET);
+            },
+            |r| {
+                self.registers.pselrts.write(Psel::PIN.val(r.into()));
+            },
+        );
+
+        // Make sure we clear the endtx interrupt since that is what we rely on
+        // to know when the DMA TX finishes. Normally, we clear this interrupt
+        // as we handle it, so this is not necessary. However, a bootloader (or
+        // some other startup code) may have setup TX interrupts, and there may
+        // be one pending. We clear it to be safe.
+        self.registers.event_endtx.write(Event::READY::CLEAR);
+
+        self.enable_uart();
     }
 
-    pub fn clear_tx_interrupt(&self) {
-        let regs = self.registers;
-
-        regs.int_clr.modify(
-            INT::TXFIFO_EMPTY_INT::SET
-                + INT::TX_BRK_DONE_INT::SET
-                + INT::TX_BRK_IDLE_DONE_INT::SET
-                + INT::TX_DONE_INT::SET,
-        );
-    }
-
-    pub fn disable_tx_interrupt(&self) {
-        let regs = self.registers;
-        regs.int_ena.modify(
-            INT::TXFIFO_EMPTY_INT::CLEAR
-                + INT::TX_BRK_DONE_INT::CLEAR
-                + INT::TX_BRK_IDLE_DONE_INT::CLEAR
-                + INT::TX_DONE_INT::CLEAR,
-        );
-    }
-
-    fn enable_rx_interrupt(&self) {
-        let regs = self.registers;
-
-        regs.int_ena.modify(
-            INT::RXFIFO_FULL_INT::SET + INT::RXFIFO_OVF_INT::SET + INT::RXFIFO_TOUT_INT::SET,
-        );
-    }
-
-    pub fn clear_rx_interrupt(&self) {
-        let regs = self.registers;
-
-        regs.int_clr.modify(
-            INT::RXFIFO_FULL_INT::SET + INT::RXFIFO_OVF_INT::SET + INT::RXFIFO_TOUT_INT::SET,
-        );
-    }
-
-    pub fn disable_rx_interrupt(&self) {
-        let regs = self.registers;
-        regs.int_ena.modify(
-            INT::RXFIFO_FULL_INT::CLEAR + INT::RXFIFO_OVF_INT::CLEAR + INT::RXFIFO_TOUT_INT::CLEAR,
-        );
-    }
-
-    fn tx_progress(&self) {
-        let regs = self.registers;
-        let idx = self.tx_index.get();
-        let len = self.tx_len.get();
-
-        if idx < len {
-            // Read from the transmit buffer and send bytes to the UART hardware
-            // until either the buffer is empty or the UART hardware is full.
-            self.tx_buffer.map(|tx_buf| {
-                let tx_len = len - idx;
-
-                for i in 0..tx_len {
-                    if regs.status.read(STATUS::TXFIFO_CNT) >= 127 {
-                        break;
-                    }
-                    let tx_idx = idx + i;
-                    regs.fifo
-                        .write(FIFO::RXFIFO_RD_BYTE.val(tx_buf[tx_idx] as u32));
-                    self.tx_index.set(tx_idx + 1)
-                }
-            });
+    fn set_baud_rate(&self, baud_rate: u32) {
+        match baud_rate {
+            1200 => self.registers.baudrate.set(0x0004F000),
+            2400 => self.registers.baudrate.set(0x0009D000),
+            4800 => self.registers.baudrate.set(0x0013B000),
+            9600 => self.registers.baudrate.set(0x00275000),
+            14400 => self.registers.baudrate.set(0x003AF000),
+            19200 => self.registers.baudrate.set(0x004EA000),
+            28800 => self.registers.baudrate.set(0x0075C000),
+            38400 => self.registers.baudrate.set(0x009D0000),
+            57600 => self.registers.baudrate.set(0x00EB0000),
+            76800 => self.registers.baudrate.set(0x013A9000),
+            115200 => self.registers.baudrate.set(0x01D60000),
+            230400 => self.registers.baudrate.set(0x03B00000),
+            250000 => self.registers.baudrate.set(0x04000000),
+            460800 => self.registers.baudrate.set(0x07400000),
+            921600 => self.registers.baudrate.set(0x0F000000),
+            1000000 => self.registers.baudrate.set(0x10000000),
+            _ => self.registers.baudrate.set(0x01D60000), //setting default to 115200
         }
     }
 
-    fn rx_progress(&self) {
-        let regs = self.registers;
-        let idx = self.rx_index.get();
-        let len = self.rx_len.get();
-
-        if idx < len {
-            // Read from the UART hardware and write them to the receive buffer
-            // until either the buffer is full or the UART hardware is empty.
-            self.rx_buffer.map(|rx_buf| {
-                let rx_len = len - idx;
-
-                for i in 0..rx_len {
-                    if regs.status.read(STATUS::RXFIFO_CNT) == 0 {
-                        break;
-                    }
-                    let rx_idx = idx + i;
-                    rx_buf[rx_idx] = regs.fifo.read(FIFO::RXFIFO_RD_BYTE) as u8;
-                    self.rx_index.set(rx_idx + 1)
-                }
-            });
-        }
+    // Enable UART peripheral, this need to disabled for low power applications
+    fn enable_uart(&self) {
+        self.registers.enable.write(Uart::ENABLE::ON);
     }
 
+    #[allow(dead_code)]
+    fn disable_uart(&self) {
+        self.registers.enable.write(Uart::ENABLE::OFF);
+    }
+
+    fn enable_rx_interrupts(&self) {
+        self.registers.intenset.write(Interrupt::ENDRX::SET);
+    }
+
+    fn enable_tx_interrupts(&self) {
+        self.registers.intenset.write(Interrupt::ENDTX::SET);
+    }
+
+    fn disable_rx_interrupts(&self) {
+        self.registers.intenclr.write(Interrupt::ENDRX::SET);
+    }
+
+    fn disable_tx_interrupts(&self) {
+        self.registers.intenclr.write(Interrupt::ENDTX::SET);
+    }
+
+    /// UART interrupt handler that listens for both tx_end and rx_end events
+    #[inline(never)]
     pub fn handle_interrupt(&self) {
-        let regs = self.registers;
-        let intrs = regs.int_st.extract();
+        if self.tx_ready() {
+            self.disable_tx_interrupts();
+            self.registers.event_endtx.write(Event::READY::CLEAR);
+            let tx_bytes = self.registers.txd_amount.get() as usize;
 
-        if intrs.is_set(INT::TXFIFO_EMPTY_INT) {
-            self.clear_tx_interrupt();
-            if self.tx_index.get() == self.tx_len.get() {
-                self.disable_tx_interrupt();
-                // We sent everything to the UART hardware, now from an
-                // interrupt callback we can issue the callback.
+            let rem = match self.tx_remaining_bytes.get().checked_sub(tx_bytes) {
+                None => return,
+                Some(r) => r,
+            };
+
+            // All bytes have been transmitted
+            if rem == 0 {
+                // Signal client write done
                 self.tx_client.map(|client| {
-                    self.tx_buffer.take().map(|tx_buf| {
-                        client.transmitted_buffer(tx_buf, self.tx_len.get(), Ok(()));
+                    self.tx_buffer.take().map(|tx_buffer| {
+                        client.transmitted_buffer(tx_buffer, self.tx_len.get(), Ok(()));
                     });
                 });
             } else {
-                // We have more to transmit, so continue in tx_progress().
-                self.tx_progress();
+                // Not all bytes have been transmitted then update offset and continue transmitting
+                self.offset.set(self.offset.get() + tx_bytes);
+                self.tx_remaining_bytes.set(rem);
+                self.set_tx_dma_pointer_to_buffer();
+                self.registers
+                    .txd_maxcnt
+                    .write(Counter::COUNTER.val(min(rem as u32, UARTE_MAX_BUFFER_SIZE)));
+                self.registers.task_starttx.write(Task::ENABLE::SET);
+                self.enable_tx_interrupts();
             }
         }
 
-        if intrs.is_set(INT::RXFIFO_FULL_INT) || intrs.is_set(INT::RXFIFO_TOUT_INT) {
-            self.clear_rx_interrupt();
-            if self.rx_index.get() == self.rx_len.get() {
-                self.disable_rx_interrupt();
-                // We received everything from the UART hardware, now from an
-                // interrupt callback we can issue the callback.
+        if self.rx_ready() {
+            self.disable_rx_interrupts();
+
+            // Clear the ENDRX event
+            self.registers.event_endrx.write(Event::READY::CLEAR);
+
+            // Get the number of bytes in the buffer that was received this time
+            let rx_bytes = self.registers.rxd_amount.get() as usize;
+
+            // Check if this ENDRX is due to an abort. If so, we want to
+            // do the receive callback immediately.
+            if self.rx_abort_in_progress.get() {
+                self.rx_abort_in_progress.set(false);
                 self.rx_client.map(|client| {
-                    self.rx_buffer.take().map(|rx_buf| {
+                    self.rx_buffer.take().map(|rx_buffer| {
                         client.received_buffer(
-                            rx_buf,
-                            self.rx_len.get(),
-                            Ok(()),
-                            hil::uart::Error::None,
+                            rx_buffer,
+                            self.offset.get() + rx_bytes,
+                            Err(ErrorCode::CANCEL),
+                            uart::Error::None,
                         );
                     });
                 });
             } else {
-                // We have more to receive, so continue in rx_progress().
-                self.rx_progress();
+                // In the normal case, we need to either pass call the callback
+                // or do another read to get more bytes.
+
+                // Update how many bytes we still need to receive and
+                // where we are storing in the buffer.
+                self.rx_remaining_bytes
+                    .set(self.rx_remaining_bytes.get().saturating_sub(rx_bytes));
+                self.offset.set(self.offset.get() + rx_bytes);
+
+                let rem = self.rx_remaining_bytes.get();
+                if rem == 0 {
+                    // Signal client that the read is done
+                    self.rx_client.map(|client| {
+                        self.rx_buffer.take().map(|rx_buffer| {
+                            client.received_buffer(
+                                rx_buffer,
+                                self.offset.get(),
+                                Ok(()),
+                                uart::Error::None,
+                            );
+                        });
+                    });
+                } else {
+                    // Setup how much we can read. We already made sure that
+                    // this will fit in the buffer.
+                    let to_read = core::cmp::min(rem, 255);
+                    self.registers
+                        .rxd_maxcnt
+                        .write(Counter::COUNTER.val(to_read as u32));
+
+                    // Actually do the receive.
+                    self.set_rx_dma_pointer_to_buffer();
+                    self.registers.task_startrx.write(Task::ENABLE::SET);
+                    self.enable_rx_interrupts();
+                }
             }
         }
     }
 
-    pub fn transmit_sync(&self, bytes: &[u8]) {
-        let regs = self.registers;
-        for b in bytes.iter() {
-            while regs.status.read(STATUS::TXFIFO_CNT) > 8 {}
-            regs.fifo.write(FIFO::RXFIFO_RD_BYTE.val(*b as u32));
-        }
+    /// Transmit one byte at the time and the client is responsible for polling
+    /// This is used by the panic handler
+    pub unsafe fn send_byte(&self, byte: u8) {
+        self.tx_remaining_bytes.set(1);
+        self.registers.event_endtx.write(Event::READY::CLEAR);
+        // precaution: copy value into variable with static lifetime
+        BYTE = byte;
+        self.registers.txd_ptr.set((&BYTE as *const u8) as u32);
+        self.registers.txd_maxcnt.write(Counter::COUNTER.val(1));
+        self.registers.task_starttx.write(Task::ENABLE::SET);
+    }
+
+    /// Check if the UART transmission is done
+    pub fn tx_ready(&self) -> bool {
+        self.registers.event_endtx.is_set(Event::READY)
+    }
+
+    /// Check if either the rx_buffer is full or the UART has timed out
+    pub fn rx_ready(&self) -> bool {
+        self.registers.event_endrx.is_set(Event::READY)
+    }
+
+    fn set_tx_dma_pointer_to_buffer(&self) {
+        self.tx_buffer.map(|tx_buffer| {
+            self.registers
+                .txd_ptr
+                .set(tx_buffer[self.offset.get()..].as_ptr() as u32);
+        });
+    }
+
+    fn set_rx_dma_pointer_to_buffer(&self) {
+        self.rx_buffer.map(|rx_buffer| {
+            self.registers
+                .rxd_ptr
+                .set(rx_buffer[self.offset.get()..].as_ptr() as u32);
+        });
+    }
+
+    // Helper function used by both transmit_word and transmit_buffer
+    fn setup_buffer_transmit(&self, buf: &'static mut [u8], tx_len: usize) {
+        self.tx_remaining_bytes.set(tx_len);
+        self.tx_len.set(tx_len);
+        self.offset.set(0);
+        self.tx_buffer.replace(buf);
+        self.set_tx_dma_pointer_to_buffer();
+
+        self.registers
+            .txd_maxcnt
+            .write(Counter::COUNTER.val(min(tx_len as u32, UARTE_MAX_BUFFER_SIZE)));
+        self.registers.task_starttx.write(Task::ENABLE::SET);
+
+        self.enable_tx_interrupts();
     }
 }
 
-impl hil::uart::Configure for Uart<'_> {
-    fn configure(&self, _params: hil::uart::Parameters) -> Result<(), ErrorCode> {
-        // Disable all interrupts for now
-        self.disable_rx_interrupt();
-        self.disable_tx_interrupt();
-
-        Ok(())
-    }
-}
-
-impl<'a> hil::uart::Transmit<'a> for Uart<'a> {
-    fn set_transmit_client(&self, client: &'a dyn hil::uart::TransmitClient) {
+impl<'a> uart::Transmit<'a> for Uarte<'a> {
+    fn set_transmit_client(&self, client: &'a dyn uart::TransmitClient) {
         self.tx_client.set(client);
     }
 
@@ -419,19 +455,12 @@ impl<'a> hil::uart::Transmit<'a> for Uart<'a> {
         } else if self.tx_buffer.is_some() {
             Err((ErrorCode::BUSY, tx_data))
         } else {
-            // Save the buffer so we can keep sending it.
-            self.tx_buffer.replace(tx_data);
-            self.tx_len.set(tx_len);
-            self.tx_index.set(0);
-
-            self.enable_tx_interrupt();
-
-            self.tx_progress();
+            self.setup_buffer_transmit(tx_data, tx_len);
             Ok(())
         }
     }
 
-    fn transmit_word(&self, _word: u32) -> Result<(), ErrorCode> {
+    fn transmit_word(&self, _data: u32) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
     }
 
@@ -440,29 +469,56 @@ impl<'a> hil::uart::Transmit<'a> for Uart<'a> {
     }
 }
 
-/* UART receive is not implemented yet, mostly due to a lack of tests available */
-impl<'a> hil::uart::Receive<'a> for Uart<'a> {
-    fn set_receive_client(&self, client: &'a dyn hil::uart::ReceiveClient) {
+impl<'a> uart::Configure for Uarte<'a> {
+    fn configure(&self, params: uart::Parameters) -> Result<(), ErrorCode> {
+        // These could probably be implemented, but are currently ignored, so
+        // throw an error.
+        if params.stop_bits != uart::StopBits::One {
+            return Err(ErrorCode::NOSUPPORT);
+        }
+        if params.parity != uart::Parity::None {
+            return Err(ErrorCode::NOSUPPORT);
+        }
+        if params.hw_flow_control {
+            return Err(ErrorCode::NOSUPPORT);
+        }
+
+        self.set_baud_rate(params.baud_rate);
+
+        Ok(())
+    }
+}
+
+impl<'a> uart::Receive<'a> for Uarte<'a> {
+    fn set_receive_client(&self, client: &'a dyn uart::ReceiveClient) {
         self.rx_client.set(client);
     }
 
     fn receive_buffer(
         &self,
-        rx_buffer: &'static mut [u8],
+        rx_buf: &'static mut [u8],
         rx_len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
-        if rx_len == 0 || rx_len > rx_buffer.len() {
-            return Err((ErrorCode::SIZE, rx_buffer));
+        if self.rx_buffer.is_some() {
+            return Err((ErrorCode::BUSY, rx_buf));
         }
+        // truncate rx_len if necessary
+        let truncated_length = core::cmp::min(rx_len, rx_buf.len());
 
-        self.rx_buffer.replace(rx_buffer);
-        self.rx_index.set(0);
-        self.rx_len.set(rx_len);
+        self.rx_remaining_bytes.set(truncated_length);
+        self.offset.set(0);
+        self.rx_buffer.replace(rx_buf);
+        self.set_rx_dma_pointer_to_buffer();
 
-        self.enable_rx_interrupt();
+        let truncated_uart_max_length = core::cmp::min(truncated_length, 255);
 
-        self.rx_progress();
+        self.registers
+            .rxd_maxcnt
+            .write(Counter::COUNTER.val(truncated_uart_max_length as u32));
+        self.registers.task_stoprx.write(Task::ENABLE::SET);
+        self.registers.task_startrx.write(Task::ENABLE::SET);
 
+        self.enable_rx_interrupts();
         Ok(())
     }
 
@@ -471,6 +527,13 @@ impl<'a> hil::uart::Receive<'a> for Uart<'a> {
     }
 
     fn receive_abort(&self) -> Result<(), ErrorCode> {
-        Err(ErrorCode::FAIL)
+        // Trigger the STOPRX event to cancel the current receive call.
+        if self.rx_buffer.is_none() {
+            Ok(())
+        } else {
+            self.rx_abort_in_progress.set(true);
+            self.registers.task_stoprx.write(Task::ENABLE::SET);
+            Err(ErrorCode::BUSY)
+        }
     }
 }
