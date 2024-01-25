@@ -369,16 +369,16 @@ pub unsafe fn main() {
         UartChannel::Pins(UartPins::new(UART_RTS, UART_TXD, UART_CTS, UART_RXD));
     };
 
-    // Creating Uart instance
-    let uart = kernel::hil::uart::Uart::new();
-
-    uart.configure(uart::Parameters {
-        baud_rate: 250000,
-        width: uart::Width::Eight,
-        stop_bits: uart::StopBits::One,
-        parity: uart::Parity::Even,
-        hw_flow_control: true,
-    });
+    //    // Creating Uart instance
+    //    let uart = kernel::hil::uart::Uart::new();
+    //
+    //    uart.configure(uart::Parameters {
+    //        baud_rate: 250000,
+    //        width: uart::Width::Eight,
+    //        stop_bits: uart::StopBits::One,
+    //        parity: uart::Parity::Even,
+    //        hw_flow_control: true,
+    //    });
 
     // Setup space to store the core kernel data structure.
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
