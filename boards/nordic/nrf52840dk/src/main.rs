@@ -242,25 +242,35 @@ impl SyscallDriverLookup for Platform {
     where
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
-        match driver_num {
-            capsules_core::console::DRIVER_NUM => f(Some(self.console)),
-            capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
-            capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
-            capsules_core::led::DRIVER_NUM => f(Some(self.led)),
-            capsules_core::button::DRIVER_NUM => f(Some(self.button)),
-            capsules_core::rng::DRIVER_NUM => f(Some(self.rng)),
-            capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
-            capsules_extra::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
-            capsules_extra::ieee802154::DRIVER_NUM => f(Some(self.ieee802154_radio)),
-            capsules_extra::temperature::DRIVER_NUM => f(Some(self.temp)),
-            capsules_extra::analog_comparator::DRIVER_NUM => f(Some(self.analog_comparator)),
-            capsules_extra::net::udp::DRIVER_NUM => f(Some(self.udp_driver)),
-            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
-            capsules_core::i2c_master_slave_driver::DRIVER_NUM => f(Some(self.i2c_master_slave)),
-            capsules_core::spi_controller::DRIVER_NUM => f(Some(self.spi_controller)),
-            capsules_extra::net::thread::driver::DRIVER_NUM => f(Some(self.thread_driver)),
-            capsules_extra::kv_driver::DRIVER_NUM => f(Some(self.kv_driver)),
-            _ => f(None),
+        // If most significant word is 0xF (0b1111), then we will match wtih "external" drivers
+        if (driver_num >> 28 == 0xF) {
+            match driver_num {
+                0xF000_0000 => f(Some(self.external_driver)),
+                _ => f(None),
+            }
+        } else {
+            match driver_num {
+                capsules_core::console::DRIVER_NUM => f(Some(self.console)),
+                capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
+                capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
+                capsules_core::led::DRIVER_NUM => f(Some(self.led)),
+                capsules_core::button::DRIVER_NUM => f(Some(self.button)),
+                capsules_core::rng::DRIVER_NUM => f(Some(self.rng)),
+                capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
+                capsules_extra::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
+                capsules_extra::ieee802154::DRIVER_NUM => f(Some(self.ieee802154_radio)),
+                capsules_extra::temperature::DRIVER_NUM => f(Some(self.temp)),
+                capsules_extra::analog_comparator::DRIVER_NUM => f(Some(self.analog_comparator)),
+                capsules_extra::net::udp::DRIVER_NUM => f(Some(self.udp_driver)),
+                kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
+                capsules_core::i2c_master_slave_driver::DRIVER_NUM => {
+                    f(Some(self.i2c_master_slave))
+                }
+                capsules_core::spi_controller::DRIVER_NUM => f(Some(self.spi_controller)),
+                capsules_extra::net::thread::driver::DRIVER_NUM => f(Some(self.thread_driver)),
+                capsules_extra::kv_driver::DRIVER_NUM => f(Some(self.kv_driver)),
+                _ => f(None),
+            }
         }
     }
 }
@@ -473,6 +483,11 @@ pub unsafe fn main() {
         LedLow::new(&nrf52840_peripherals.gpio_port[LED3_PIN]),
         LedLow::new(&nrf52840_peripherals.gpio_port[LED4_PIN]),
     ));
+
+    let external_driver = kernel::static_init!(
+        capsules_core::external_driver::ExternalDriver,
+        capsules_core::external_driver::ExternalDriver::new()
+    );
 
     //--------------------------------------------------------------------------
     // TIMER
