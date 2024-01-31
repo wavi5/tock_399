@@ -79,9 +79,9 @@ use capsules_extra::net::ipv6::ip_utils::IPAddr;
 use kernel::component::Component;
 use kernel::hil::led::LedLow;
 use kernel::hil::time::Counter;
-use nrf52840::uart::{UARTE0_BASE, Uarte};
-use kernel::hil::uart;
-use kernel::hil::uart::{Width, Parity, StopBits, Parameters, Configure};
+// use nrf52840::uart::{UARTE0_BASE, Uarte};
+// use kernel::hil::uart;
+// use kernel::hil::uart::{Width, Parity, StopBits, Parameters, Configure};
 #[allow(unused_imports)]
 use kernel::hil::usb::Client;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
@@ -112,6 +112,11 @@ const UART_RTS: Option<Pin> = Some(Pin::P0_05);
 const UART_TXD: Pin = Pin::P0_06;
 const UART_CTS: Option<Pin> = Some(Pin::P0_07);
 const UART_RXD: Pin = Pin::P0_08;
+
+const UART_RTS_2: Option<Pin> = Some(Pin::P0_19);
+const UART_TXD_2: Pin = Pin::P0_20;
+const UART_CTS_2: Option<Pin> = Some(Pin::P0_21);
+const UART_RXD_2: Pin = Pin::P0_22;
 
 const SPI_MOSI: Pin = Pin::P0_20;
 const SPI_MISO: Pin = Pin::P0_21;
@@ -368,27 +373,10 @@ pub unsafe fn main() {
 
         UartChannel::Rtt(rtt_memory_refs)
     } else {
-        UartChannel::Pins(UartPins::new(UART_RTS, UART_TXD, UART_CTS, UART_RXD))
+        UartChannel::Pins(UartPins::new(UART_RTS, UART_TXD, UART_CTS, UART_RXD));
+        UartChannel::Pins(UartPins::new(UART_RTS_2,UART_TXD_2, UART_CTS_2, UART_RXD_2));
     };
 
-    // Initialize UART objects 
-    let uart1 = nrf52840::uart::Uarte::new(UARTE0_BASE);
-    uart1.configure(kernel::hil::uart::Parameters {
-        baud_rate: 115200,
-        width: uart::Width::Eight,
-        stop_bits: uart::StopBits::One,
-        parity: uart::Parity::None,
-        hw_flow_control: false,
-    });
-
-    let uart2 = nrf52840::uart::Uarte::new(UARTE0_BASE);
-    uart2.configure(kernel::hil::uart::Parameters {
-        baud_rate: 115200,
-        width: uart::Width::Eight,
-        stop_bits: uart::StopBits::One,
-        parity: uart::Parity::None,
-        hw_flow_control: false,
-    });
     // Setup space to store the core kernel data structure.
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
