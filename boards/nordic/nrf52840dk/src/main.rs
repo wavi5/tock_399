@@ -374,7 +374,7 @@ pub unsafe fn main() {
         UartChannel::Rtt(rtt_memory_refs)
     } else {
         UartChannel::Pins(UartPins::new(UART_RTS, UART_TXD, UART_CTS, UART_RXD));
-        UartChannel::Pins(UartPins::new(UART_RTS_2,UART_TXD_2, UART_CTS_2, UART_RXD_2));
+        UartChannel::Pins(UartPins::new(UART_RTS_2,UART_TXD_2, UART_CTS_2, UART_RXD_2))
     };
 
     // Setup space to store the core kernel data structure.
