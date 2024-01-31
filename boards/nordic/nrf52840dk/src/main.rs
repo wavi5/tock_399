@@ -377,22 +377,8 @@ pub unsafe fn main() {
         // UartChannel::Pins(UartPins::new(UART1_RTS, UART1_TXD, UART1_CTS, UART1_RXD))
     };
 
-    let uart1_channel = if USB_DEBUGGING {
-        // Initialize early so any panic beyond this point can use the RTT
-        // memory object.
-        let mut rtt_memory_refs = components::segger_rtt::SeggerRttMemoryComponent::new()
-            .finalize(components::segger_rtt_memory_component_static!());
-
-        // XXX: This is inherently unsafe as it aliases the mutable reference to
-        // rtt_memory. This aliases reference is only used inside a panic
-        // handler, which should be OK, but maybe we should use a const
-        // reference to rtt_memory and leverage interior mutability instead.
-        self::io::set_rtt_memory(&*rtt_memory_refs.get_rtt_memory_ptr());
-
-        UartChannel::Rtt(rtt_memory_refs)
-    } else {
-        UartChannel::Pins(UartPins::new(UART1_RTS, UART1_TXD, UART1_CTS, UART1_RXD))
-    };
+    let uart1_channel = UartChannel::Pins(UartPins::new(UART1_RTS, UART1_TXD, UART1_CTS, UART1_RXD))
+    ;
 
 
 
@@ -573,6 +559,9 @@ pub unsafe fn main() {
 
     // Virtualize the UART channel for the console and for kernel debug.
     let uart_mux = components::console::UartMuxComponent::new(uart_channel, 115200)
+        .finalize(components::uart_mux_component_static!());
+    
+    let uart1_mux = components::console::UartMuxComponent::new(uart1_channel, 115200)
         .finalize(components::uart_mux_component_static!());
 
     // Create the process console, an interactive terminal for managing
@@ -1028,5 +1017,6 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
+    write(1);
     board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
 }
