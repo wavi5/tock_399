@@ -373,9 +373,10 @@ pub unsafe fn main() {
 
         UartChannel::Rtt(rtt_memory_refs)
     } else {
-        UartChannel::Pins(UartPins::new(UART_RTS, UART_TXD, UART_CTS, UART_RXD));
-        UartChannel::Pins(UartPins::new(UART_RTS_2,UART_TXD_2, UART_CTS_2, UART_RXD_2))
+        UartChannel::Pins(UartPins::new(UART_RTS, UART_TXD, UART_CTS, UART_RXD))
     };
+
+    let uart1_channel = UartChannel::Pins(UartPins::new(UART_RTS, UART_TXD, UART_CTS, UART_RXD));
 
     // Setup space to store the core kernel data structure.
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
@@ -520,6 +521,15 @@ pub unsafe fn main() {
         nrf52840::rtc::Rtc
     ));
 
+    let uart1_channel = nrf52_components::UartChannelComponent::new(
+        uart1_channel,
+        mux_alarm,
+        &base_peripherals.uarte1,
+    )
+    .finalize(nrf52_components::uart_channel_component_static!(
+        nrf52840::rtc::Rtc
+    ));
+
     // Tool for displaying information about processes.
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
         .finalize(components::process_printer_text_component_static!());
@@ -527,6 +537,9 @@ pub unsafe fn main() {
 
     // Virtualize the UART channel for the console and for kernel debug.
     let uart_mux = components::console::UartMuxComponent::new(uart_channel, 115200)
+        .finalize(components::uart_mux_component_static!());
+
+    let uart1_mux = components::console::UartMuxComponent::new(uart1_channel, 115200)
         .finalize(components::uart_mux_component_static!());
 
     // Create the process console, an interactive terminal for managing
@@ -981,6 +994,8 @@ pub unsafe fn main() {
         debug!("Error loading processes!");
         debug!("{:?}", err);
     });
+    
+
 
     board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
 }
