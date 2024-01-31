@@ -113,6 +113,11 @@ const UART_TXD: Pin = Pin::P0_06;
 const UART_CTS: Option<Pin> = Some(Pin::P0_07);
 const UART_RXD: Pin = Pin::P0_08;
 
+const UART1_RTS: Option<Pin> = Some(Pin::P0_19);
+const UART1_TXD: Pin = Pin::P0_20;
+const UART1_CTS: Option<Pin> = Some(Pin::P0_21);
+const UART1_RXD: Pin = Pin::P0_22;
+
 const SPI_MOSI: Pin = Pin::P0_20;
 const SPI_MISO: Pin = Pin::P0_21;
 const SPI_CLK: Pin = Pin::P0_19;
@@ -369,7 +374,27 @@ pub unsafe fn main() {
         UartChannel::Rtt(rtt_memory_refs)
     } else {
         UartChannel::Pins(UartPins::new(UART_RTS, UART_TXD, UART_CTS, UART_RXD))
+        // UartChannel::Pins(UartPins::new(UART1_RTS, UART1_TXD, UART1_CTS, UART1_RXD))
     };
+
+    let uart1_channel = if USB_DEBUGGING {
+        // Initialize early so any panic beyond this point can use the RTT
+        // memory object.
+        let mut rtt_memory_refs = components::segger_rtt::SeggerRttMemoryComponent::new()
+            .finalize(components::segger_rtt_memory_component_static!());
+
+        // XXX: This is inherently unsafe as it aliases the mutable reference to
+        // rtt_memory. This aliases reference is only used inside a panic
+        // handler, which should be OK, but maybe we should use a const
+        // reference to rtt_memory and leverage interior mutability instead.
+        self::io::set_rtt_memory(&*rtt_memory_refs.get_rtt_memory_ptr());
+
+        UartChannel::Rtt(rtt_memory_refs)
+    } else {
+        UartChannel::Pins(UartPins::new(UART1_RTS, UART1_TXD, UART1_CTS, UART1_RXD))
+    };
+
+
 
     // Initialize UART objects 
     let uart1 = nrf52840::uart::Uarte::new(UARTE0_BASE);
@@ -527,6 +552,15 @@ pub unsafe fn main() {
         uart_channel,
         mux_alarm,
         &base_peripherals.uarte0,
+    )
+    .finalize(nrf52_components::uart_channel_component_static!(
+        nrf52840::rtc::Rtc
+    ));
+
+    let uart1_channel = nrf52_components::UartChannelComponent::new(
+        uart1_channel,
+        mux_alarm,
+        &base_peripherals.uarte1,
     )
     .finalize(nrf52_components::uart_channel_component_static!(
         nrf52840::rtc::Rtc

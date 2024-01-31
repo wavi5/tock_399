@@ -11,7 +11,7 @@ use kernel::hil::led;
 use kernel::hil::uart;
 use kernel::hil::uart::Configure;
 use nrf52840::gpio::Pin;
-use nrf52840::uart::{Uarte, UARTE0_BASE};
+use nrf52840::uart::{Uarte, UARTE0_BASE, UARTE1_BASE};
 
 use crate::CHIP;
 use crate::PROCESSES;
