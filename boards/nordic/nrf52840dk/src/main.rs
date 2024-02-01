@@ -246,9 +246,14 @@ impl SyscallDriverLookup for Platform {
         // If most significant bit is 1 (0b10000...), then we will match wtih "external" drivers
         if driver_num >> 31 == 1 {
             // Check if desired driver exists in the external driver list
+            debug!("External driver requested: {}", driver_num);
             let res = self.external_driver.get_driver(driver_num as u32);
             if res.is_some() {
+                // Call driver w/ the driver_num
                 // f(res)
+                debug!("External driver found: {}", driver_num);
+
+                // Dummy Call
                 f(Some(self.external_driver))
             } else {
                 f(None)

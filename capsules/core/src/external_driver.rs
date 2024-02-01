@@ -51,8 +51,6 @@ use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
-use crate::driver;
-pub const DRIVER_NUM: usize = driver::NUM::External as usize;
 pub const LIFE: usize = 42;
 
 /// Implements a basic SyscallDriver without any specific device management.
