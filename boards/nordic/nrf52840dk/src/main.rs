@@ -113,10 +113,10 @@ const UART_TXD: Pin = Pin::P0_06;
 const UART_CTS: Option<Pin> = Some(Pin::P0_07);
 const UART_RXD: Pin = Pin::P0_08;
 
-const UART_RTS_2: Option<Pin> = Some(Pin::P0_19);
-const UART_TXD_2: Pin = Pin::P0_20;
-const UART_CTS_2: Option<Pin> = Some(Pin::P0_21);
-const UART_RXD_2: Pin = Pin::P0_22;
+const UART_RTS_2: Option<Pin> = Some(Pin::P1_05);
+const UART_TXD_2: Pin = Pin::P1_06;
+const UART_CTS_2: Option<Pin> = Some(Pin::P1_07);
+const UART_RXD_2: Pin = Pin::P1_08;
 
 const SPI_MOSI: Pin = Pin::P0_20;
 const SPI_MISO: Pin = Pin::P0_21;
@@ -539,7 +539,7 @@ pub unsafe fn main() {
     let uart_mux = components::console::UartMuxComponent::new(uart_channel, 115200)
         .finalize(components::uart_mux_component_static!());
 
-    let uart1_mux = components::console::UartMuxComponent::new(uart1_channel, 115200)
+    let uart1_mux = components::console::UartMuxComponent::new(&base_peripherals.uarte1, 115200)
         .finalize(components::uart_mux_component_static!());
 
     
@@ -954,6 +954,8 @@ pub unsafe fn main() {
 
     let _ = platform.pconsole.start();
     base_peripherals.adc.calibrate();
+
+    debug!("uart initalization??");
 
     test::virtual_uart_nrf_test::run_virtual_uart_receive(uart1_mux);
 
