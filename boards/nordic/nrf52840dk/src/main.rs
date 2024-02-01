@@ -244,18 +244,20 @@ impl SyscallDriverLookup for Platform {
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         // If most significant bit is 1 (0b10000...), then we will match wtih "external" drivers
-        if driver_num >> 31 == 1 {
+        if (driver_num >> 31) == 1 {
             // Check if desired driver exists in the external driver list
-            debug!("External driver requested: {}", driver_num);
-            let res = self.external_driver.get_driver(driver_num as u32);
-            if res.is_some() {
+            debug!("External driver requested: {:X}", driver_num);
+            // let res = self.external_driver.get_driver(driver_num as u32);
+            let res = self.external_driver.find_driver(driver_num as u32);
+            if res > 0 {
                 // Call driver w/ the driver_num
                 // f(res)
-                debug!("External driver found: {}", driver_num);
+                debug!("External driver found: {:X}", res);
 
                 // Dummy Call
                 f(Some(self.external_driver))
             } else {
+                debug!("External driver not found: {:X}", driver_num);
                 f(None)
             }
         } else {

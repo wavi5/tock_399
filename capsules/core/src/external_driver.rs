@@ -52,10 +52,11 @@ use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
 pub const LIFE: usize = 42;
+pub const MAXDRIVERS: usize = 100;
 
 /// Implements a basic SyscallDriver without any specific device management.
 pub struct ExternalDriver {
-    external_drivers: [(u32, Option<&'static dyn SyscallDriver>); 10],
+    external_drivers: [(u32, Option<&'static dyn SyscallDriver>); MAXDRIVERS],
     count: usize,
 }
 
@@ -63,8 +64,8 @@ impl ExternalDriver {
     pub fn new() -> Self {
         // Initialization logic can be added if needed in the future.
         Self {
-            external_drivers: [(0x80000000, None); 10],
-            count: 0,
+            external_drivers: [(0x80000000, None); MAXDRIVERS],
+            count: MAXDRIVERS,
         }
     }
 
@@ -82,6 +83,15 @@ impl ExternalDriver {
             }
         }
         None
+    }
+
+    pub fn find_driver(&self, driver_num: u32) -> u32 {
+        for i in 0..self.count {
+            if self.external_drivers[i].0 == driver_num {
+                return self.external_drivers[i].0;
+            }
+        }
+        0
     }
 
     pub fn remove_driver(&mut self, driver_num: u32) {
