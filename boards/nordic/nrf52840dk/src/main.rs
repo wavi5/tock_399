@@ -235,6 +235,7 @@ pub struct Platform {
     kv_driver: &'static KVDriver,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
+    external_driver: &'static capsules_core::external_driver::ExternalDriver,
 }
 
 impl SyscallDriverLookup for Platform {
@@ -242,12 +243,9 @@ impl SyscallDriverLookup for Platform {
     where
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
-        // If most significant word is 0xF (0b1111), then we will match wtih "external" drivers
-        if (driver_num >> 28 == 0xF) {
-            match driver_num {
-                0xF000_0000 => f(Some(self.external_driver)),
-                _ => f(None),
-            }
+        // If most significant bit is 1 (0b10000...), then we will match wtih "external" drivers
+        if driver_num >> 31 == 1 {
+            f(Some(self.external_driver))
         } else {
             match driver_num {
                 capsules_core::console::DRIVER_NUM => f(Some(self.console)),
@@ -913,6 +911,7 @@ pub unsafe fn main() {
         ieee802154_radio,
         pconsole,
         console,
+        external_driver,
         led,
         gpio,
         rng,
