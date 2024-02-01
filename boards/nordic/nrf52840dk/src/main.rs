@@ -955,7 +955,7 @@ pub unsafe fn main() {
     let _ = platform.pconsole.start();
     base_peripherals.adc.calibrate();
 
-    test::virtual_uart_nrf_test::run_virtual_uart_receive(uart_mux);
+    test::virtual_uart_nrf_test::run_virtual_uart_receive(uart1_mux);
 
     // test::aes_test::run_aes128_ctr(&base_peripherals.ecb);
     // test::aes_test::run_aes128_cbc(&base_peripherals.ecb);
@@ -998,6 +998,7 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
+    // test::virtual_uart_nrf_test::run_virtual_uart_receive(uart1_mux);
 
     board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
 }
