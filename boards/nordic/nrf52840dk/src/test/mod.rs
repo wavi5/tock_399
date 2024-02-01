@@ -5,3 +5,4 @@
 pub(crate) mod aes_test;
 pub(crate) mod hmac_sha256_test;
 pub(crate) mod siphash24_test;
+pub(crate) mod virtual_uart_nrf_test;

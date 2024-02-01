@@ -376,7 +376,7 @@ pub unsafe fn main() {
         UartChannel::Pins(UartPins::new(UART_RTS, UART_TXD, UART_CTS, UART_RXD))
     };
 
-    let uart1_channel = UartChannel::Pins(UartPins::new(UART_RTS, UART_TXD, UART_CTS, UART_RXD));
+    let uart1_channel = UartChannel::Pins(UartPins::new(UART_RTS_2, UART_TXD_2, UART_CTS_2, UART_RXD_2));
 
     // Setup space to store the core kernel data structure.
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
@@ -542,6 +542,7 @@ pub unsafe fn main() {
     let uart1_mux = components::console::UartMuxComponent::new(uart1_channel, 115200)
         .finalize(components::uart_mux_component_static!());
 
+    
     // Create the process console, an interactive terminal for managing
     // processes.
     let pconsole = components::process_console::ProcessConsoleComponent::new(
@@ -954,6 +955,8 @@ pub unsafe fn main() {
     let _ = platform.pconsole.start();
     base_peripherals.adc.calibrate();
 
+    test::virtual_uart_nrf_test::run_virtual_uart_receive(uart_mux);
+
     // test::aes_test::run_aes128_ctr(&base_peripherals.ecb);
     // test::aes_test::run_aes128_cbc(&base_peripherals.ecb);
     // test::aes_test::run_aes128_ecb(&base_peripherals.ecb);
@@ -994,7 +997,6 @@ pub unsafe fn main() {
         debug!("Error loading processes!");
         debug!("{:?}", err);
     });
-    
 
 
     board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
