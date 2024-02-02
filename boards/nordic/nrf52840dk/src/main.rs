@@ -207,6 +207,8 @@ pub struct Platform {
         kernel::hil::led::LedLow<'static, nrf52840::gpio::GPIOPin<'static>>,
         4,
     >,
+    mary: &'static capsules_core::mary::MaryDriver,
+    sys_redirect: &'static capsules_core::sys_redirect::SysRedirect,
     rng: &'static capsules_core::rng::RngDriver<'static>,
     adc: &'static capsules_core::adc::AdcDedicated<'static, nrf52840::adc::Adc<'static>>,
     temp: &'static TemperatureDriver,
@@ -242,25 +244,39 @@ impl SyscallDriverLookup for Platform {
     where
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
-        match driver_num {
-            capsules_core::console::DRIVER_NUM => f(Some(self.console)),
-            capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
-            capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
-            capsules_core::led::DRIVER_NUM => f(Some(self.led)),
-            capsules_core::button::DRIVER_NUM => f(Some(self.button)),
-            capsules_core::rng::DRIVER_NUM => f(Some(self.rng)),
-            capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
-            capsules_extra::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
-            capsules_extra::ieee802154::DRIVER_NUM => f(Some(self.ieee802154_radio)),
-            capsules_extra::temperature::DRIVER_NUM => f(Some(self.temp)),
-            capsules_extra::analog_comparator::DRIVER_NUM => f(Some(self.analog_comparator)),
-            capsules_extra::net::udp::DRIVER_NUM => f(Some(self.udp_driver)),
-            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
-            capsules_core::i2c_master_slave_driver::DRIVER_NUM => f(Some(self.i2c_master_slave)),
-            capsules_core::spi_controller::DRIVER_NUM => f(Some(self.spi_controller)),
-            capsules_extra::net::thread::driver::DRIVER_NUM => f(Some(self.thread_driver)),
-            capsules_extra::kv_driver::DRIVER_NUM => f(Some(self.kv_driver)),
-            _ => f(None),
+        if driver_num >> 31 == 1 {
+            debug!("Syscall redirect requested, {:X}", driver_num);
+            if self.sys_redirect.validate_sys(driver_num as usize) {
+                debug!("Syscall found in redirect list, {:X}", driver_num);
+                f(Some(self.sys_redirect))
+            } else {
+                debug!("Syscall not found in redirect list, {:X}", driver_num);
+                f(None)
+            }
+        }
+        else {
+            match driver_num {
+                capsules_core::console::DRIVER_NUM => f(Some(self.console)),
+                capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
+                capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
+                capsules_core::led::DRIVER_NUM => f(Some(self.led)),
+                capsules_core::mary::DRIVER_NUM => f(Some(self.mary)),
+                capsules_core::sys_redirect::DRIVER_NUM => f(Some(self.sys_redirect)),
+                capsules_core::button::DRIVER_NUM => f(Some(self.button)),
+                capsules_core::rng::DRIVER_NUM => f(Some(self.rng)),
+                capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
+                capsules_extra::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
+                capsules_extra::ieee802154::DRIVER_NUM => f(Some(self.ieee802154_radio)),
+                capsules_extra::temperature::DRIVER_NUM => f(Some(self.temp)),
+                capsules_extra::analog_comparator::DRIVER_NUM => f(Some(self.analog_comparator)),
+                capsules_extra::net::udp::DRIVER_NUM => f(Some(self.udp_driver)),
+                kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
+                capsules_core::i2c_master_slave_driver::DRIVER_NUM => f(Some(self.i2c_master_slave)),
+                capsules_core::spi_controller::DRIVER_NUM => f(Some(self.spi_controller)),
+                capsules_extra::net::thread::driver::DRIVER_NUM => f(Some(self.thread_driver)),
+                capsules_extra::kv_driver::DRIVER_NUM => f(Some(self.kv_driver)),
+                _ => f(None),
+            }
         }
     }
 }
@@ -473,6 +489,18 @@ pub unsafe fn main() {
         LedLow::new(&nrf52840_peripherals.gpio_port[LED3_PIN]),
         LedLow::new(&nrf52840_peripherals.gpio_port[LED4_PIN]),
     ));
+
+    //--------------------------------------------------------------------------
+    // MARY
+    //--------------------------------------------------------------------------
+
+    let mary = kernel::static_init!(capsules_core::mary::MaryDriver, capsules_core::mary::MaryDriver::new());
+
+    //--------------------------------------------------------------------------
+    // SYS_REDIRECT
+    //--------------------------------------------------------------------------
+
+    let sys_redirect = kernel::static_init!(capsules_core::sys_redirect::SysRedirect, capsules_core::sys_redirect::SysRedirect::new());
 
     //--------------------------------------------------------------------------
     // TIMER
@@ -899,6 +927,8 @@ pub unsafe fn main() {
         pconsole,
         console,
         led,
+        mary,
+        sys_redirect,
         gpio,
         rng,
         adc,

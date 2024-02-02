@@ -91,5 +91,7 @@ pub enum NUM {
     SevenSegment          = 0x90004,
     KeyboardHid           = 0x90005,
     DateTime              = 0x90007,
+    Mary                  = 0x90008,
+    SysRedirect           = 0x90009,
 }
 }
