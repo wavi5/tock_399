@@ -961,8 +961,6 @@ pub unsafe fn main() {
 
     debug!("uart initalization??");
 
-    test::virtual_uart_nrf_test::run_virtual_uart_receive(uart1_mux);
-
     // Here, we create a second instance of the Uarte struct.
     // This is okay because we only call this during a panic, and
     // we will never actually process the interrupts
@@ -974,8 +972,15 @@ pub unsafe fn main() {
         hw_flow_control: false,
         width: uart::Width::Eight,
     });
+    static mut BUF:[u8; 1] = [10];
+    static mut RBUF: [u8; 1] = [0];
+
     kernel::hil::uart::Transmit::set_transmit_client(uart1_channel, uart1_mux);
-    
+    let result = kernel::hil::uart::Transmit::transmit_buffer(uart1_channel, &mut BUF, BUF.len());
+    debug!("{:?}", result);
+    kernel::hil::uart::Receive::set_receive_client(uart1_channel, uart1_mux);
+    let result2 = kernel::hil::uart::Receive::receive_buffer(uart1_channel, &mut RBUF, RBUF.len());
+    debug!("{:?}", result2);
 
     // test::virtual_uart_nrf_test::run_virtual_uart_transmit(uart1_mux);
     // test::virtual_uart_nrf_test::run_virtual_uart_receive(uart1_mux);
