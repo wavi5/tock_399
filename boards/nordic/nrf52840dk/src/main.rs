@@ -1019,6 +1019,8 @@ pub unsafe fn main() {
         width: uart::Width::Eight,
     });
 
+    kernel::hil::uart::Transmit::set_transmit_client(uart1_channel, uart1_mux);
+
     let buf: [u8; 2] = [1, 0];
 
     for c in buf {
