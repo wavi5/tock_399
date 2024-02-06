@@ -73,6 +73,7 @@ unsafe fn static_init_test_receive_small(
         TestVirtualUartReceive::new(device, &mut SMALL)
     );
     device.set_receive_client(test);
+
     test
 }
 
