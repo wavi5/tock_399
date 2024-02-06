@@ -79,8 +79,11 @@ use capsules_extra::net::ipv6::ip_utils::IPAddr;
 use kernel::component::Component;
 use kernel::hil::led::LedLow;
 use kernel::hil::time::Counter;
-// use nrf52840::uart::{UARTE0_BASE, Uarte};
-// use kernel::hil::uart;
+use kernel::hil::uart;
+use kernel::hil::uart::Configure;
+use kernel::hil::uart::Receive;
+use kernel::hil::uart::Transmit;
+use nrf52::uart::{Uarte, UARTE1_BASE};
 // use kernel::hil::uart::{Width, Parity, StopBits, Parameters, Configure};
 #[allow(unused_imports)]
 use kernel::hil::usb::Client;
@@ -376,7 +379,9 @@ pub unsafe fn main() {
         UartChannel::Pins(UartPins::new(UART_RTS, UART_TXD, UART_CTS, UART_RXD))
     };
 
-    let uart1_channel = UartChannel::Pins(UartPins::new(UART_RTS_2, UART_TXD_2, UART_CTS_2, UART_RXD_2));
+    let uart1_channel = UartChannel::Pins(UartPins::new(
+        UART_RTS_2, UART_TXD_2, UART_CTS_2, UART_RXD_2,
+    ));
 
     // Setup space to store the core kernel data structure.
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
@@ -542,7 +547,6 @@ pub unsafe fn main() {
     let uart1_mux = components::console::UartMuxComponent::new(&base_peripherals.uarte1, 115200)
         .finalize(components::uart_mux_component_static!());
 
-    
     // Create the process console, an interactive terminal for managing
     // processes.
     let pconsole = components::process_console::ProcessConsoleComponent::new(
@@ -1001,6 +1005,21 @@ pub unsafe fn main() {
     });
 
     // test::virtual_uart_nrf_test::run_virtual_uart_receive(uart1_mux);
+
+    // new stuff
+    // Here, we create a second instance of the Uarte struct.
+    // This is okay because we only call this during a panic, and
+    // we will never actually process the interrupts
+    let uarte1 = Uarte::new(UARTE1_BASE);
+    let _ = uarte1.configure(uart::Parameters {
+        baud_rate: 115200,
+        stop_bits: uart::StopBits::One,
+        parity: uart::Parity::None,
+        hw_flow_control: false,
+        width: uart::Width::Eight,
+    });
+
+    kernel::hil::uart::Transmit::set_transmit_client(uart1_channel, uart1_mux);
 
     board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
 }
