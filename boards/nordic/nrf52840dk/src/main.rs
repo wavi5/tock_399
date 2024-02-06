@@ -79,8 +79,9 @@ use capsules_extra::net::ipv6::ip_utils::IPAddr;
 use kernel::component::Component;
 use kernel::hil::led::LedLow;
 use kernel::hil::time::Counter;
-// use nrf52840::uart::{UARTE0_BASE, Uarte};
-// use kernel::hil::uart;
+use kernel::hil::uart;
+use kernel::hil::uart::Configure;
+use kernel::hil::uart::Transmit;
 // use kernel::hil::uart::{Width, Parity, StopBits, Parameters, Configure};
 #[allow(unused_imports)]
 use kernel::hil::usb::Client;
@@ -90,6 +91,7 @@ use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{capabilities, create_capability, debug, debug_gpio, debug_verbose, static_init};
 use nrf52840::gpio::Pin;
 use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
+use nrf52::uart::{Uarte, UARTE0_BASE, UARTE1_BASE};
 use nrf52_components::{self, UartChannel, UartPins};
 
 #[allow(dead_code)]
@@ -958,6 +960,27 @@ pub unsafe fn main() {
     debug!("uart initalization??");
 
     test::virtual_uart_nrf_test::run_virtual_uart_receive(uart1_mux);
+
+    // Here, we create a second instance of the Uarte struct.
+    // This is okay because we only call this during a panic, and
+    // we will never actually process the interrupts
+    let uart = Uarte::new(UARTE1_BASE);
+    let _ = uart.configure(uart::Parameters {
+        baud_rate: 115200,
+        stop_bits: uart::StopBits::One,
+        parity: uart::Parity::None,
+        hw_flow_control: false,
+        width: uart::Width::Eight,
+    });
+    let buf = [10];
+    for c in buf {
+        unsafe {
+            uart.send_byte(c);
+        }
+        while !uart.tx_ready() {}
+    }
+    kernel::hil::uart::Transmit::set_transmit_client(uart1_channel, uart1_mux);
+    
 
     // test::aes_test::run_aes128_ctr(&base_peripherals.ecb);
     // test::aes_test::run_aes128_cbc(&base_peripherals.ecb);
