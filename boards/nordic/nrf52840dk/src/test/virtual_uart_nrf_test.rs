@@ -48,11 +48,19 @@
 //! 61
 //! ```
 
-use capsules_core::test::virtual_uart::TestVirtualUartReceive;
+use capsules_core::test::virtual_uart::{TestVirtualUartReceive, TestVirtualUartTransmit};
 use capsules_core::virtualizers::virtual_uart::{MuxUart, UartDevice};
 use kernel::debug;
 use kernel::hil::uart::Receive;
+use kernel::hil::uart::Transmit;
 use kernel::static_init;
+pub unsafe fn run_virtual_uart_transmit(mux: &'static MuxUart<'static>) {
+    debug!("Starting virtual writes.");
+    let small = static_init_test_transmit_small(mux);
+    let large = static_init_test_transmit_large(mux);
+    small.run();
+    large.run();
+}
 
 pub unsafe fn run_virtual_uart_receive(mux: &'static MuxUart<'static>) {
     debug!("Starting virtual reads.");
@@ -65,7 +73,7 @@ pub unsafe fn run_virtual_uart_receive(mux: &'static MuxUart<'static>) {
 unsafe fn static_init_test_receive_small(
     mux: &'static MuxUart<'static>,
 ) -> &'static TestVirtualUartReceive {
-    static mut SMALL: [u8; 3] = [0; 3];
+    static mut SMALL: [u8; 3] = [42; 3];
     let device = static_init!(UartDevice<'static>, UartDevice::new(mux, true));
     device.setup();
     let test = static_init!(
@@ -87,5 +95,33 @@ unsafe fn static_init_test_receive_large(
         TestVirtualUartReceive::new(device, &mut BUFFER)
     );
     device.set_receive_client(test);
+    test
+}
+
+unsafe fn static_init_test_transmit_small(
+    mux: &'static MuxUart<'static>,
+) -> &'static TestVirtualUartTransmit {
+    static mut SMALL: [u8; 3] = [0; 3];
+    let device = static_init!(UartDevice<'static>, UartDevice::new(mux, true));
+    device.setup();
+    let test = static_init!(
+        TestVirtualUartTransmit,
+        TestVirtualUartTransmit::new(device, &mut SMALL)
+    );
+    device.set_transmit_client(test);
+    test
+}
+
+unsafe fn static_init_test_transmit_large(
+    mux: &'static MuxUart<'static>,
+) -> &'static TestVirtualUartTransmit {
+    static mut BUFFER: [u8; 7] = [100; 7];
+    let device = static_init!(UartDevice<'static>, UartDevice::new(mux, true));
+    device.setup();
+    let test = static_init!(
+        TestVirtualUartTransmit,
+        TestVirtualUartTransmit::new(device, &mut BUFFER)
+    );
+    device.set_transmit_client(test);
     test
 }

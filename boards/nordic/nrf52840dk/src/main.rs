@@ -94,6 +94,8 @@ use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
 use nrf52::uart::{Uarte, UARTE0_BASE, UARTE1_BASE};
 use nrf52_components::{self, UartChannel, UartPins};
 
+use crate::test::virtual_uart_nrf_test::run_virtual_uart_transmit;
+
 #[allow(dead_code)]
 mod test;
 
@@ -972,16 +974,12 @@ pub unsafe fn main() {
         hw_flow_control: false,
         width: uart::Width::Eight,
     });
-    let buf = [10];
-    for c in buf {
-        unsafe {
-            uart.send_byte(c);
-        }
-        while !uart.tx_ready() {}
-    }
     kernel::hil::uart::Transmit::set_transmit_client(uart1_channel, uart1_mux);
     
 
+    // test::virtual_uart_nrf_test::run_virtual_uart_transmit(uart1_mux);
+    // test::virtual_uart_nrf_test::run_virtual_uart_receive(uart1_mux);
+    
     // test::aes_test::run_aes128_ctr(&base_peripherals.ecb);
     // test::aes_test::run_aes128_cbc(&base_peripherals.ecb);
     // test::aes_test::run_aes128_ecb(&base_peripherals.ecb);
