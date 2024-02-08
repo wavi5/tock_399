@@ -81,6 +81,8 @@ use kernel::hil::led::LedLow;
 use kernel::hil::time::Counter;
 use kernel::hil::uart;
 use kernel::hil::uart::Configure;
+use kernel::hil::uart::Error;
+use kernel::hil::uart::ReceiveClient;
 use kernel::hil::uart::Transmit;
 // use kernel::hil::uart::{Width, Parity, StopBits, Parameters, Configure};
 #[allow(unused_imports)]
@@ -972,18 +974,26 @@ pub unsafe fn main() {
         hw_flow_control: false,
         width: uart::Width::Eight,
     });
-    static mut BUF:[u8; 1] = [10];
-    static mut RBUF: [u8; 1] = [0];
+    static mut BUF:[u8; 7] = [0; 7];
+    static mut RBUF: [u8; 7] = [0; 7];
 
+    // set transmit client
     kernel::hil::uart::Transmit::set_transmit_client(uart1_channel, uart1_mux);
-    let result = kernel::hil::uart::Transmit::transmit_buffer(uart1_channel, &mut BUF, BUF.len());
-    debug!("{:?}", result);
-    kernel::hil::uart::Receive::set_receive_client(uart1_channel, uart1_mux);
-    let result2 = kernel::hil::uart::Receive::receive_buffer(uart1_channel, &mut RBUF, RBUF.len());
-    debug!("{:?}", result2);
+    // transmit buffer
+    // let result = kernel::hil::uart::Transmit::transmit_buffer(uart1_channel, &mut BUF, BUF.len());
+    // debug!("{:?}", result);
+    // let converted_result = result.map_err(|(error_code, _)| error_code);
+    // let result_transmit = kernel::hil::uart::TransmitClient::transmitted_buffer(uart1_mux, &mut BUF, BUF.len(), converted_result);
+    // debug!("{:?}", result_transmit);
+    // kernel::hil::uart::Receive::set_receive_client(uart1_channel, uart1_mux);
+    // let result2 = kernel::hil::uart::Receive::receive_buffer(uart1_channel, &mut RBUF, RBUF.len());
+    // debug!("{:?}", result2);
+    // let converted_result2 = result2.map_err(|(error_code, _)| error_code);
+    // let result_receive = kernel::hil::uart::ReceiveClient::received_buffer(uart1_mux, &mut RBUF, RBUF.len(), converted_result2, Error::None);
+    // debug!("{:?}", result_receive);
 
-    // test::virtual_uart_nrf_test::run_virtual_uart_transmit(uart1_mux);
-    // test::virtual_uart_nrf_test::run_virtual_uart_receive(uart1_mux);
+    test::virtual_uart_nrf_test::run_virtual_uart_transmit(uart1_mux);
+    test::virtual_uart_nrf_test::run_virtual_uart_receive(uart1_mux);
     
     // test::aes_test::run_aes128_ctr(&base_peripherals.ecb);
     // test::aes_test::run_aes128_cbc(&base_peripherals.ecb);

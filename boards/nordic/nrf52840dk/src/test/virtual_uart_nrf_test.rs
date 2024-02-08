@@ -51,7 +51,7 @@
 use capsules_core::test::virtual_uart::{TestVirtualUartReceive, TestVirtualUartTransmit};
 use capsules_core::virtualizers::virtual_uart::{MuxUart, UartDevice};
 use kernel::debug;
-use kernel::hil::uart::Receive;
+use kernel::hil::uart::{Receive, ReceiveClient, Error};
 use kernel::hil::uart::Transmit;
 use kernel::static_init;
 pub unsafe fn run_virtual_uart_transmit(mux: &'static MuxUart<'static>) {
@@ -70,10 +70,11 @@ pub unsafe fn run_virtual_uart_receive(mux: &'static MuxUart<'static>) {
     large.run();
 }
 
+
 unsafe fn static_init_test_receive_small(
     mux: &'static MuxUart<'static>,
 ) -> &'static TestVirtualUartReceive {
-    static mut SMALL: [u8; 3] = [42; 3];
+    static mut SMALL: [u8; 1] = [42; 1];
     let device = static_init!(UartDevice<'static>, UartDevice::new(mux, true));
     device.setup();
     let test = static_init!(
@@ -101,7 +102,7 @@ unsafe fn static_init_test_receive_large(
 unsafe fn static_init_test_transmit_small(
     mux: &'static MuxUart<'static>,
 ) -> &'static TestVirtualUartTransmit {
-    static mut SMALL: [u8; 3] = [0; 3];
+    static mut SMALL: [u8; 1] = [42; 1];
     let device = static_init!(UartDevice<'static>, UartDevice::new(mux, true));
     device.setup();
     let test = static_init!(
