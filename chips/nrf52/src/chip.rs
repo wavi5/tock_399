@@ -100,6 +100,7 @@ impl<'a> kernel::platform::chip::InterruptService for Nrf52DefaultPeripherals<'a
             crate::peripheral_interrupts::TIMER1 => self.timer1.handle_interrupt(),
             crate::peripheral_interrupts::TIMER2 => self.timer2.handle_interrupt(),
             crate::peripheral_interrupts::UART0 => self.uarte0.handle_interrupt(),
+            crate::peripheral_interrupts::UART1 => self.uarte1.handle_interrupt(),
             crate::peripheral_interrupts::SPI0_TWI0 => {
                 // SPI0 and TWI0 share interrupts.
                 // Dispatch the correct handler.

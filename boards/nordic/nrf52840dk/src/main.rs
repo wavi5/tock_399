@@ -973,7 +973,7 @@ pub unsafe fn main() {
         hw_flow_control: false,
         width: uart::Width::Eight,
     });
-    static mut BUF:[u8; 8] = [0, 1 , 2 , 3, 4, 5, 6, 7];
+    static mut BUF:[u8; 100] = [0; 100];
     static mut RBUF: [u8; 7] = [0; 7];
 
 
@@ -996,23 +996,23 @@ pub unsafe fn main() {
 
     // test::virtual_uart_nrf_test::run_virtual_uart_transmit(uart1_mux);
     
-    let device = static_init!(UartDevice<'static>, UartDevice::new(uart1_mux, true,));
-    device.setup();
-    let uart = Uarte::new(UARTE1_BASE);
-    for num in BUF {
-        unsafe {
-            uart.send_byte(num);
-            debug!("{}", num);
-        }
-        while !uart.tx_ready() {}
-        // debug!("{}", num);
-    }
+    // let device = static_init!(UartDevice<'static>, UartDevice::new(uart1_mux, true,));
+    // device.setup();
+    // let uart = Uarte::new(UARTE1_BASE);
+    // for num in BUF {
+    //     unsafe {
+    //         uart.send_byte(num);
+    //         debug!("{}", num);
+    //     }
+    //     while !uart.tx_ready() {}
+    //     // debug!("{}", num);
+    // }
 
     // debug!("tx_buffer: {}", uart.tx_ready());
     // Receive just using the receive test 
     // debug!("rx_buffer: {}", uart.rx_ready());
 
-    // test::virtual_uart_nrf_test::run_virtual_uart_receive(uart1_mux);
+    test::virtual_uart_nrf_test::run_virtual_uart_receive(uart1_mux);
 
     // debug!("tx_buffer: {}", uart.tx_ready());
     // how to access rx buffer?????????
