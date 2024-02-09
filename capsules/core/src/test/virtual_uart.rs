@@ -65,6 +65,7 @@ impl TestVirtualUartReceive {
         let test = self.device
             .receive_buffer(buf, len)
             .expect("Calling receive_buffer() in virtual_uart test failed");
+
     }
 }
 
@@ -84,6 +85,7 @@ impl uart::ReceiveClient for TestVirtualUartReceive {
         self.device
             .receive_buffer(rx_buffer, rx_len)
             .expect("Calling receive_buffer() in virtual_uart test failed");
+
     }
 }
 

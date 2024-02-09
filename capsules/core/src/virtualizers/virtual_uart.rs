@@ -488,7 +488,7 @@ impl<'a> uart::Receive<'a> for UartDevice<'a> {
             if (!self.rx_buffer.is_none()) {
                 debug!("something here!!");
             }
-            // self.received_buffer(self.rx_buffer.take().unwrap(), self.rx_len.take(), Ok(()), kernel::hil::uart::Error::None);
+            self.received_buffer(self.rx_buffer.take().unwrap(), self.rx_len.take(), Ok(()), kernel::hil::uart::Error::None);
             Ok(())
         }
     }
