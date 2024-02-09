@@ -74,7 +74,6 @@
 #![deny(missing_docs)]
 
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
-use capsules_core::virtualizers::virtual_uart::{MuxUart, UartDevice};
 use capsules_extra::net::ieee802154::MacAddress;
 use capsules_extra::net::ipv6::ip_utils::IPAddr;
 use kernel::component::Component;
@@ -96,6 +95,8 @@ use nrf52840::gpio::Pin;
 use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
 use nrf52::uart::{Uarte, UARTE0_BASE, UARTE1_BASE};
 use nrf52_components::{self, UartChannel, UartPins};
+
+use crate::test::virtual_uart_nrf_test::run_virtual_uart_transmit;
 
 #[allow(dead_code)]
 mod test;
@@ -544,7 +545,7 @@ pub unsafe fn main() {
     let uart_mux = components::console::UartMuxComponent::new(uart_channel, 115200)
         .finalize(components::uart_mux_component_static!());
 
-    let uart1_mux = components::console::UartMuxComponent::new(uart1_channel, 115200)
+    let uart1_mux = components::console::UartMuxComponent::new(&base_peripherals.uarte1, 115200)
         .finalize(components::uart_mux_component_static!());
 
     
@@ -973,7 +974,7 @@ pub unsafe fn main() {
         hw_flow_control: false,
         width: uart::Width::Eight,
     });
-    static mut BUF:[u8; 8] = [0, 1 , 2 , 3, 4, 5, 6, 7];
+    static mut BUF:[u8; 7] = [0; 7];
     static mut RBUF: [u8; 7] = [0; 7];
 
 
@@ -985,37 +986,15 @@ pub unsafe fn main() {
     // let converted_result = result.map_err(|(error_code, _)| error_code);
     // let result_transmit = kernel::hil::uart::TransmitClient::transmitted_buffer(uart1_mux, &mut BUF, BUF.len(), converted_result);
     // debug!("{:?}", result_transmit);
-
-    // set receive client
     // kernel::hil::uart::Receive::set_receive_client(uart1_channel, uart1_mux);
-    // let result2 = kernel::hil::uart::Receive::receive_buffer(uart1_channel, &mut BUF, RBUF.len());
+    // let result2 = kernel::hil::uart::Receive::receive_buffer(uart1_channel, &mut RBUF, RBUF.len());
     // debug!("{:?}", result2);
     // let converted_result2 = result2.map_err(|(error_code, _)| error_code);
-    // let result_receive = kernel::hil::uart::ReceiveClient::received_buffer(uart1_mux, device.rx_buffer, RBUF.len(), converted_result2, Error::None);
+    // let result_receive = kernel::hil::uart::ReceiveClient::received_buffer(uart1_mux, &mut RBUF, RBUF.len(), converted_result2, Error::None);
     // debug!("{:?}", result_receive);
 
     // test::virtual_uart_nrf_test::run_virtual_uart_transmit(uart1_mux);
-    
-    // let device = static_init!(UartDevice<'static>, UartDevice::new(uart1_mux, true,));
-    // device.setup();
-    // let uart = Uarte::new(UARTE1_BASE);
-    // for num in BUF {
-    //     unsafe {
-    //         uart.send_byte(num);
-    //         debug!("{}", num);
-    //     }
-    //     while !uart.tx_ready() {}
-    //     // debug!("{}", num);
-    // }
-
-    // debug!("tx_buffer: {}", uart.tx_ready());
-    // Receive just using the receive test 
-    // debug!("rx_buffer: {}", uart.rx_ready());
-
-    // debug!("tx_buffer: {}", uart.tx_ready());
-    // how to access rx buffer?????????
-
-    // device.received_buffer(&mut uart.rx_buffer, SMALL.len(), Ok(()), Error::None);
+    // test::virtual_uart_nrf_test::run_virtual_uart_receive(uart1_mux);
     
     // test::aes_test::run_aes128_ctr(&base_peripherals.ecb);
     // test::aes_test::run_aes128_cbc(&base_peripherals.ecb);
@@ -1058,7 +1037,7 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
-    test::virtual_uart_nrf_test::run_virtual_uart_receive(uart1_mux);
+    // test::virtual_uart_nrf_test::run_virtual_uart_receive(uart1_mux);
 
     board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
 }

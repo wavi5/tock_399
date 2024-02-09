@@ -62,18 +62,38 @@ pub unsafe fn run_virtual_uart_receive(mux: &'static MuxUart<'static>) {
     large.run();
 }
 
+// *static_init_test_receive_small*
+// params:
+// mux: borrowed static MuxUart object
+//
+// 1. Creates a 3-element zero-array
+// 2. Create new UartDevice from mux, write it to a static UartDevice, then borrows static UartDevice
+//    - It adds the `mux` that was passed in as a constructor and sets it as the `UartDevice.mux`
+//    attribute
+// 3. Sets up attributes for device
+//    - Adds the `UartDevice` self to `UartDevice.mux.devices[]`
+// 4. creates `test`, which is just a borrowed mut `TestVirtualUartReceive` from `/test/virtual_uart.rs`
+//    - A `TestVirtualUartReceive` is just going to be an implementation of a `Uart`
+//    - Constructor takes in a static `UartDevice` as well as a mutable u8[] `buffer`
+//    - What attributes does a `TestVirtualUartReceive` have?
+//    - It's basically a type of `Uart` and just copies its traits
+// 5.
+
 unsafe fn static_init_test_receive_small(
     mux: &'static MuxUart<'static>,
 ) -> &'static TestVirtualUartReceive {
-    static mut SMALL: [u8; 3] = [0; 3];
-    let device = static_init!(UartDevice<'static>, UartDevice::new(mux, true));
+    static mut SMALL: [u8; 3] = [0; 3]; // Create a 3-element zero-array
+    let device =
+        static_init!(UartDevice<'static>,
+            UartDevice::new(mux, true));
+
     device.setup();
     let test = static_init!(
         TestVirtualUartReceive,
         TestVirtualUartReceive::new(device, &mut SMALL)
     );
     device.set_receive_client(test);
-    test
+    return test;
 }
 
 unsafe fn static_init_test_receive_large(
@@ -87,5 +107,5 @@ unsafe fn static_init_test_receive_large(
         TestVirtualUartReceive::new(device, &mut BUFFER)
     );
     device.set_receive_client(test);
-    test
+    return test;
 }

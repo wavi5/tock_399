@@ -53,6 +53,8 @@ use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::uart;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
+use kernel::debug;
+use kernel::hil::uart::ReceiveClient;
 
 pub const RX_BUF_LEN: usize = 64;
 
@@ -355,18 +357,18 @@ pub struct UartDevice<'a> {
 impl<'a> UartDevice<'a> {
     pub fn new(mux: &'a MuxUart<'a>, receiver: bool) -> UartDevice<'a> {
         UartDevice {
-            state: Cell::new(UartDeviceReceiveState::Idle),
-            mux: mux,
-            receiver: receiver,
-            tx_buffer: TakeCell::empty(),
-            transmitting: Cell::new(false),
-            rx_buffer: TakeCell::empty(),
-            rx_position: Cell::new(0),
-            rx_len: Cell::new(0),
-            operation: OptionalCell::empty(),
-            next: ListLink::empty(),
-            rx_client: OptionalCell::empty(),
-            tx_client: OptionalCell::empty(),
+            state: Cell::new(UartDeviceReceiveState::Idle),   // Looks like an enum
+            mux: mux,                                         // the `MuxUart` object that is passed in
+            receiver: receiver,                               // bool, should be `receiver?`
+            tx_buffer: TakeCell::empty(),                     // transmit buffer, basically an `any` variable
+            transmitting: Cell::new(false),             // bool, transmission state
+            rx_buffer: TakeCell::empty(),                     // receive buffer, basically an `any` variable
+            rx_position: Cell::new(0),                  // `rx_buffer`s operate like a queue
+            rx_len: Cell::new(0),                       // just the length of the buffer
+            operation: OptionalCell::empty(),                 // ???
+            next: ListLink::empty(),                          // ???
+            rx_client: OptionalCell::empty(),                 // receive_client
+            tx_client: OptionalCell::empty(),                 // transmit_client
         }
     }
 
@@ -466,17 +468,27 @@ impl<'a> uart::Receive<'a> for UartDevice<'a> {
         rx_buffer: &'static mut [u8],
         rx_len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        // debug!("[DEBUG] Now inside of the `receive_buffer` function.");
         if self.rx_buffer.is_some() {
+            // debug!("[DEBUG] rx_buffer.is_some() == 1 ");
             Err((ErrorCode::BUSY, rx_buffer))
         } else if rx_len > rx_buffer.len() {
+            // debug!("[DEBUG] rx_len > rx_buffer.len() ");
             Err((ErrorCode::SIZE, rx_buffer))
         } else {
+            // debug!("[DEBUG] Inside else statement");
             self.rx_buffer.replace(rx_buffer);
             self.rx_len.set(rx_len);
             self.rx_position.set(0);
             self.state.set(UartDeviceReceiveState::Idle);
             self.mux.start_receive(rx_len)?;
             self.state.set(UartDeviceReceiveState::Receiving);
+            // debug!("[DEBUG] Returning Ok(())");
+
+            if (!self.rx_buffer.is_none()) {
+                debug!("something here!!");
+            }
+            // self.received_buffer(self.rx_buffer.take().unwrap(), self.rx_len.take(), Ok(()), kernel::hil::uart::Error::None);
             Ok(())
         }
     }

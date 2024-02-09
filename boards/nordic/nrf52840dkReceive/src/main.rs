@@ -960,7 +960,12 @@ pub unsafe fn main() {
     let _ = platform.pconsole.start();
     base_peripherals.adc.calibrate();
 
-    debug!("uart initalization??");
+
+    debug!("[DEBUG] Invoking run_virtual_uart_receive...");
+
+    // Testing Line
+    test::virtual_uart_nrf_test::run_virtual_uart_receive(uart1_mux);
+    debug!("[DEBUG] Response to run_virtual_uart_receive...");
 
     // Here, we create a second instance of the Uarte struct.
     // This is okay because we only call this during a panic, and
@@ -995,34 +1000,21 @@ pub unsafe fn main() {
     // debug!("{:?}", result_receive);
 
     // test::virtual_uart_nrf_test::run_virtual_uart_transmit(uart1_mux);
-    
+
     // let device = static_init!(UartDevice<'static>, UartDevice::new(uart1_mux, true,));
     // device.setup();
     // let uart = Uarte::new(UARTE1_BASE);
     // for num in BUF {
     //     unsafe {
-    //         uart.send_byte(num);
+    //          uart.send_byte(num);
     //         debug!("{}", num);
     //     }
     //     while !uart.tx_ready() {}
     //     // debug!("{}", num);
     // }
 
-    // debug!("tx_buffer: {}", uart.tx_ready());
-    // Receive just using the receive test 
-    // debug!("rx_buffer: {}", uart.rx_ready());
 
-    // debug!("tx_buffer: {}", uart.tx_ready());
-    // how to access rx buffer?????????
-
-    // device.received_buffer(&mut uart.rx_buffer, SMALL.len(), Ok(()), Error::None);
-    
-    // test::aes_test::run_aes128_ctr(&base_peripherals.ecb);
-    // test::aes_test::run_aes128_cbc(&base_peripherals.ecb);
-    // test::aes_test::run_aes128_ecb(&base_peripherals.ecb);
-
-    debug!("Initialization complete. Entering main loop\r");
-    debug!("{}", &nrf52840::ficr::FICR_INSTANCE);
+    // debug!("{}", &nrf52840::ficr::FICR_INSTANCE);
 
     // alarm_test_component.run();
 
@@ -1037,6 +1029,7 @@ pub unsafe fn main() {
         /// End of the RAM region for app memory.
         static _eappmem: u8;
     }
+
 
     kernel::process::load_processes(
         board_kernel,
@@ -1058,7 +1051,8 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
-    test::virtual_uart_nrf_test::run_virtual_uart_receive(uart1_mux);
+
+    debug!("Initialization complete. Entering main loop\r");
 
     board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
 }
