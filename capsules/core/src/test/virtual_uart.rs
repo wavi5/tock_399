@@ -4,11 +4,14 @@
 
 //! Test reception on the virtualized UART: best if multiple Tests are
 //! instantiated and tested in parallel.
+
 use crate::virtualizers::virtual_uart::UartDevice;
 
 use kernel::debug;
 use kernel::hil::uart;
+use kernel::hil::uart::Error;
 use kernel::hil::uart::Receive;
+use kernel::hil::uart::ReceiveClient;
 use kernel::hil::uart::Transmit;
 use kernel::utilities::cells::TakeCell;
 use kernel::ErrorCode;
