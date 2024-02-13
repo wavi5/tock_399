@@ -86,6 +86,7 @@ pub mod text_screen;
 pub mod thread_network;
 pub mod tickv;
 pub mod touch;
+pub mod uart1;
 pub mod udp_driver;
 pub mod udp_mux;
 pub mod usb;

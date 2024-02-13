@@ -996,29 +996,28 @@ pub unsafe fn main() {
 
     // test::virtual_uart_nrf_test::run_virtual_uart_transmit(uart1_mux);
     
-    let device = static_init!(UartDevice<'static>, UartDevice::new(uart1_mux, true,));
-    device.setup();
-    let uart = Uarte::new(UARTE1_BASE);
-    for num in BUF {
-        unsafe {
-            uart.send_byte(num);
-            debug!("{}", num);
-        }
-        while !uart.tx_ready() {}
-        // debug!("{}", num);
-    }
-
+    // let device = static_init!(UartDevice<'static>, UartDevice::new(uart1_mux, true,));
+    // device.setup();
+    // let uart = Uarte::new(UARTE1_BASE);
+    // for num in BUF {
+    //     unsafe {
+    //         uart.send_byte(num);
+    //         debug!("{}", num);
+    //     }
+    //     while !uart.tx_ready() {}
+    //     // debug!("{}", num);
+    // }
+    
     // debug!("tx_buffer: {}", uart.tx_ready());
     // Receive just using the receive test 
     // debug!("rx_buffer: {}", uart.rx_ready());
 
-    // test::virtual_uart_nrf_test::run_virtual_uart_receive(uart1_mux);
+    test::virtual_uart_nrf_test::run_virtual_uart_receive(uart1_mux);
+    // test::virtual_uart_nrf_test::run_virtual_uart_transmit(uart1_mux);
 
     // debug!("tx_buffer: {}", uart.tx_ready());
     // how to access rx buffer?????????
 
-    // device.received_buffer(&mut uart.rx_buffer, SMALL.len(), Ok(()), Error::None);
-    
     // test::aes_test::run_aes128_ctr(&base_peripherals.ecb);
     // test::aes_test::run_aes128_cbc(&base_peripherals.ecb);
     // test::aes_test::run_aes128_ecb(&base_peripherals.ecb);

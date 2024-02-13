@@ -67,9 +67,9 @@ pub unsafe fn run_virtual_uart_transmit(mux: &'static MuxUart<'static>) {
 
 pub unsafe fn run_virtual_uart_receive(mux: &'static MuxUart<'static>) {
     debug!("Starting virtual reads.");
-    // let small = static_init_test_receive_small(mux);
+    let small = static_init_test_receive_small(mux);
     let large = static_init_test_receive_large(mux);
-    // small.run();
+    small.run();
     large.run();
 }
 
@@ -86,11 +86,6 @@ unsafe fn static_init_test_receive_small(
     );
     device.set_receive_client(test);
     test
-    // if test == Ok(()) {
-    //     let error = Error::None;
-    // } else {
-    //     let error = result;
-    // }
 }
 
 unsafe fn static_init_test_receive_large(
@@ -105,13 +100,6 @@ unsafe fn static_init_test_receive_large(
     );
     device.set_receive_client(test);
     test
-    // let result = test;
-    // if result == Ok(()) {
-    //     let error = Error::None;
-    // } else {
-    //     let error = result;
-    // }
-    // device.received_buffer(&BUFFER, len, result, error)
 }
 
 unsafe fn static_init_test_transmit_small(
