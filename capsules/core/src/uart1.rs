@@ -50,11 +50,50 @@ use core::cmp;
 
 use kernel::collections::list::{List, ListLink, ListNode};
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
+use kernel::hil::gpio;
 use kernel::hil::uart;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
 
 pub const RX_BUF_LEN: usize = 64;
+
+pub struct UartCapsule<'a> {
+    uart: &'a dyn uart::Uart<'a>,
+    tx_buffer: TakeCell<'static, [u8]>,
+    rx_buffer: TakeCell<'static, [u8]>,
+    tx_ready: &'a dyn kernel::hil::gpio::Pin,
+    rx_ready: &'a dyn kernel::hil::gpio::Pin,
+}
+
+impl<'a> UartCapsule<'a> {
+    pub fn new(
+        uart: &'a dyn uart::Uart<'a>,
+        tx_buffer: &'static mut[u8],
+        rx_buffer: &'static mut [u8],
+        tx_ready: &'a dyn kernel::hil::gpio::Pin,
+        rx_ready: &'a dyn kernel::hil::gpio::Pin,
+    ) -> UartCapsule<'a> {
+        //
+        UartCapsule {
+            uart: uart,
+            tx_buffer: TakeCell::new(tx_buffer),
+            rx_buffer: TakeCell::new(rx_buffer),
+            tx_ready: tx_ready,
+            rx_ready: rx_ready,
+        }
+    }
+
+    pub fn init(&self) { 
+        let _ = self.uart.configure(uart::Parameters { 
+            baud_rate: 115200, 
+            width: uart::Width::Eight,
+            stop_bits: uart::StopBits::One, 
+            parity: uart::Parity::None, 
+            hw_flow_control: false, 
+        });
+    }
+    
+}
 
 pub struct MuxUart<'a> {
     uart: &'a dyn uart::Uart<'a>,

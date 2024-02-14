@@ -24,7 +24,7 @@
 //! // Create a shared UART channel for the console and for kernel debug.
 //! let uart_mux = static_init!(
 //!     MuxUart<'static>,
-// !     MuxUart::new(&sam4l::usart::USART0, &mut capsules::virtual_uart::RX_BUF)
+//!     MuxUart::new(&sam4l::usart::USART0, &mut capsules::virtual_uart::RX_BUF)
 //! );
 //! hil::uart::UART::set_receive_client(&sam4l::usart::USART0, uart_mux);
 //! hil::uart::UART::set_transmit_client(&sam4l::usart::USART0, uart_mux);

@@ -73,6 +73,7 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
+use capsules_core::console;
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use capsules_core::virtualizers::virtual_uart::{MuxUart, UartDevice};
 use capsules_extra::net::ieee802154::MacAddress;
@@ -92,6 +93,7 @@ use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 #[allow(unused_imports)]
 use kernel::{capabilities, create_capability, debug, debug_gpio, debug_verbose, static_init};
+use nrf52::peripheral_interrupts::UART0;
 use nrf52840::gpio::Pin;
 use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
 use nrf52::uart::{Uarte, UARTE0_BASE, UARTE1_BASE};
@@ -960,39 +962,23 @@ pub unsafe fn main() {
     let _ = platform.pconsole.start();
     base_peripherals.adc.calibrate();
 
-    debug!("uart initalization??");
+    // debug!("uart initalization??");
 
     // Here, we create a second instance of the Uarte struct.
     // This is okay because we only call this during a panic, and
     // we will never actually process the interrupts
-    let uart = Uarte::new(UARTE1_BASE);
-    let _ = uart.configure(uart::Parameters {
-        baud_rate: 115200,
-        stop_bits: uart::StopBits::One,
-        parity: uart::Parity::None,
-        hw_flow_control: false,
-        width: uart::Width::Eight,
-    });
-    static mut BUF:[u8; 7] = [1, 2, 3, 4, 5, 6, 7];
-    static mut RBUF: [u8; 7] = [0; 7];
+    // let uart = Uarte::new(UARTE1_BASE);
+    // let _ = uart.configure(uart::Parameters {
+    //     baud_rate: 115200,
+    //     stop_bits: uart::StopBits::One,
+    //     parity: uart::Parity::None,
+    //     hw_flow_control: false,
+    //     width: uart::Width::Eight,
+    // });
+    // static mut BUF:[u8; 7] = [1, 2, 3, 4, 5, 6, 7];
+    // static mut RBUF: [u8; 7] = [0; 7];
 
 
-    // set transmit client
-    // kernel::hil::uart::Transmit::set_transmit_client(uart1_channel, uart1_mux);
-    // transmit buffer
-    // let result = kernel::hil::uart::Transmit::transmit_buffer(uart1_channel, &mut BUF, BUF.len());
-    // debug!("{:?}", result);
-    // let converted_result = result.map_err(|(error_code, _)| error_code);
-    // let result_transmit = kernel::hil::uart::TransmitClient::transmitted_buffer(uart1_mux, &mut BUF, BUF.len(), converted_result);
-    // debug!("{:?}", result_transmit);
-
-    // set receive client
-    // kernel::hil::uart::Receive::set_receive_client(uart1_channel, uart1_mux);
-    // let result2 = kernel::hil::uart::Receive::receive_buffer(uart1_channel, &mut BUF, RBUF.len());
-    // debug!("{:?}", result2);
-    // let converted_result2 = result2.map_err(|(error_code, _)| error_code);
-    // let result_receive = kernel::hil::uart::ReceiveClient::received_buffer(uart1_mux, device.rx_buffer, RBUF.len(), converted_result2, Error::None);
-    // debug!("{:?}", result_receive);
 
     // test::virtual_uart_nrf_test::run_virtual_uart_transmit(uart1_mux);
     
@@ -1007,12 +993,32 @@ pub unsafe fn main() {
     //     while !uart.tx_ready() {}
     //     // debug!("{}", num);
     // }
-    
+    // let uart_mux = static_init!(
+    //     MuxUart<'static>,
+    //     MuxUart::new(UART0, &mut capsules::virtual_uart::RX_BUF)
+    //     );
+    //     hil::uart::UART::set_receive_client(UART0, uart_mux);
+    //     hil::uart::UART::set_transmit_client(UART0, uart_mux);
+        
+    //     // Create a UartDevice for the console.
+    //     let console_uart = static_init!(UartDevice, UartDevice::new(uart_mux, true));
+    //     console_uart.setup(); // This is important!
+    //     let console = static_init!(
+    //         capsules::console::Console<'static>,
+    //         capsules::console::Console::new(
+    //             console_uart,
+    //             &mut capsules::console::WRITE_BUF,
+    //             &mut capsules::console::READ_BUF,
+    //             board_kernel.create_grant(&grant_cap)
+    //         )
+    //     );
+    //     hil::uart::UART::set_transmit_client(console_uart, console);
+    //     hil::uart::UART::set_receive_client(console_uart, console);
     // debug!("tx_buffer: {}", uart.tx_ready());
     // Receive just using the receive test 
     // debug!("rx_buffer: {}", uart.rx_ready());
 
-    test::virtual_uart_nrf_test::run_virtual_uart_receive(uart1_mux);
+    // test::virtual_uart_nrf_test::run_virtual_uart_receive(uart1_mux);
     // test::virtual_uart_nrf_test::run_virtual_uart_transmit(uart1_mux);
 
     // debug!("tx_buffer: {}", uart.tx_ready());
