@@ -103,11 +103,10 @@ impl<'a> UartCapsule<'a> {
 
     pub fn send(&self, buffer: u8, len: usize) { 
         // copy buffer into tx_buffer
-        let len: Option<usize> = self.tx_buffer.take().map(|buf| {
-            buf.len();
-            self.uart.transmit_buffer(buf, buf.len());
-            buf.len()
-        });
+        // let len: Option<usize> = self.tx_buffer.take().map(|buf| {
+        //     buf.len();
+        //     self.uart.transmit_buffer(buf, buf.len());
+        // });
 
     }
     pub fn receive(&self) {
