@@ -977,9 +977,7 @@ pub unsafe fn main() {
     // });
     // static mut BUF:[u8; 7] = [1, 2, 3, 4, 5, 6, 7];
     // static mut RBUF: [u8; 7] = [0; 7];
-
-
-
+    
     // test::virtual_uart_nrf_test::run_virtual_uart_transmit(uart1_mux);
     
     // let device = static_init!(UartDevice<'static>, UartDevice::new(uart1_mux, true,));
@@ -993,30 +991,6 @@ pub unsafe fn main() {
     //     while !uart.tx_ready() {}
     //     // debug!("{}", num);
     // }
-    // let uart_mux = static_init!(
-    //     MuxUart<'static>,
-    //     MuxUart::new(UART0, &mut capsules::virtual_uart::RX_BUF)
-    //     );
-    //     hil::uart::UART::set_receive_client(UART0, uart_mux);
-    //     hil::uart::UART::set_transmit_client(UART0, uart_mux);
-        
-    //     // Create a UartDevice for the console.
-    //     let console_uart = static_init!(UartDevice, UartDevice::new(uart_mux, true));
-    //     console_uart.setup(); // This is important!
-    //     let console = static_init!(
-    //         capsules::console::Console<'static>,
-    //         capsules::console::Console::new(
-    //             console_uart,
-    //             &mut capsules::console::WRITE_BUF,
-    //             &mut capsules::console::READ_BUF,
-    //             board_kernel.create_grant(&grant_cap)
-    //         )
-    //     );
-    //     hil::uart::UART::set_transmit_client(console_uart, console);
-    //     hil::uart::UART::set_receive_client(console_uart, console);
-    // debug!("tx_buffer: {}", uart.tx_ready());
-    // Receive just using the receive test 
-    // debug!("rx_buffer: {}", uart.rx_ready());
 
     // test::virtual_uart_nrf_test::run_virtual_uart_receive(uart1_mux);
     // test::virtual_uart_nrf_test::run_virtual_uart_transmit(uart1_mux);

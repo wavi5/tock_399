@@ -47,6 +47,8 @@
 
 use core::cell::Cell;
 use core::cmp;
+use core::fmt::Error;
+use kernel::debug
 
 use kernel::collections::list::{List, ListLink, ListNode};
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
@@ -99,11 +101,22 @@ impl<'a> UartCapsule<'a> {
         });
     }
 
-    pub fn send(&self) { 
-        let _len = self.tx_buffer.take().iter();
-        // self.uart.transmit_buffer(self.tx_buffer, len);
+    pub fn send(&self, buffer: u8, len: usize) { 
+        // copy buffer into tx_buffer
+        let len: Option<usize> = self.tx_buffer.take().map(|buf| {
+            buf.len();
+            self.uart.transmit_buffer(buf, buf.len());
+            buf.len()
+        });
 
     }
+    pub fn receive(&self) {
+        let buf = self.rx_buffer.take().unwrap();
+        let len = buf.len();
+        self.uart
+            .receive_buffer(buf, len);
+    }
+
     
 }
 
@@ -114,13 +127,14 @@ impl<'a> uart::TransmitClient for UartCapsule<'a> {
         tx_len: usize,
         rval: Result<(), ErrorCode>,
     ) {
-        if self.tx_in_progress.get() {
-            // Err(ErrorCode::BUSY);
-        } else {
-            self.tx_buffer.replace(buffer);
+        // if self.tx_in_progress.get() {
+        //     // Err(ErrorCode::BUSY);
+        // } else {
+        self.tx_buffer.replace(buffer);
             // Ok(());
             // set_in_progress = false;
-        }
+        // set ready for new messages
+        // }
     }
     fn transmitted_word(&self, _rval: Result<(), ErrorCode>) {}
 }
@@ -135,13 +149,14 @@ impl<'a> uart::ReceiveClient for UartCapsule<'a> {
     ) {
        
         if self.rx_buffer.is_some() {
-            // Err(ErrorCode::BUSY);
+            debug!("BUSY");
         } else {
             self.rx_buffer.replace(buffer);
-            // let rx_buffer = buffer.iter().take(rx_len);
+            // self.uart
+            //     .receive_buffer(rx_buffer, rx_len);
             // self.rx_in_progress.take() = true;
             // set the in progress flag
-
+            
             // if read is successful, call read again to make sure that you read everything 
         }
 
