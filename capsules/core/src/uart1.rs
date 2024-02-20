@@ -47,8 +47,6 @@
 
 use core::cell::Cell;
 use core::cmp;
-use core::fmt::Error;
-use kernel::debug;
 
 use kernel::collections::list::{List, ListLink, ListNode};
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
@@ -101,40 +99,45 @@ impl<'a> UartCapsule<'a> {
         });
     }
 
-    pub fn send(&self, buffer: u8, len: usize) { 
-        // copy buffer into tx_buffer
-        // let len: Option<usize> = self.tx_buffer.take().map(|buf| {
-        //     buf.len();
-        //     self.uart.transmit_buffer(buf, buf.len());
-        // });
+    //
+    // UartCapsule.send()
+    // This is a fn that just handles sending bytes (essentially just
+    // a wrapper for transmit_buffer)
+    pub fn send(&self, buffer: &'static mut [u8], rval: Result<(), ErrorCode>) {
+        /*
+         * params:
+         * buffer: the buffer that is being sent
+         * tx_len: the length of the buffer that is being sent
+         * rval: the return value that is being returned from the function
+         */
 
-    }
-    pub fn receive(&self) {
-        let buf = self.rx_buffer.take().unwrap();
-        let len = buf.len();
-        self.uart
-            .receive_buffer(buf, len);
-    }
+        self.tx_buffer.replace(buffer);
+        let buf = self.tx_buffer.take().unwrap();
+        let _len = buf.len();
 
-    
+        // Transmit the buffer
+        let _ = self.uart.transmit_buffer(buf, _len);
+    }
 }
 
+//
+// TransmitClient for UartCapsule
 impl<'a> uart::TransmitClient for UartCapsule<'a> {
+    //
+    // TransmitClient.transmitted_buffer()
+    //  This is called whenever `UartCapsule.send()` finishes
     fn transmitted_buffer(
         &self,
         buffer: &'static mut [u8],
         tx_len: usize,
         rval: Result<(), ErrorCode>,
     ) {
-        // if self.tx_in_progress.get() {
-        //     // Err(ErrorCode::BUSY);
-        // } else {
+        // First step is to always replace the `self.tx_buffer` with `buffer`
         self.tx_buffer.replace(buffer);
-            // Ok(());
-            // set_in_progress = false;
-        // set ready for new messages
-        // }
     }
+
+    //
+    // TransmitClient.transmitted_word()
     fn transmitted_word(&self, _rval: Result<(), ErrorCode>) {}
 }
 
@@ -146,17 +149,15 @@ impl<'a> uart::ReceiveClient for UartCapsule<'a> {
         rcode: Result<(), ErrorCode>,
         error: uart::Error,
     ) {
-       
         if self.rx_buffer.is_some() {
-            debug!("BUSY");
+            // Err(ErrorCode::BUSY);
         } else {
             self.rx_buffer.replace(buffer);
-            // self.uart
-            //     .receive_buffer(rx_buffer, rx_len);
+            // let rx_buffer = buffer.iter().take(rx_len);
             // self.rx_in_progress.take() = true;
             // set the in progress flag
-            
-            // if read is successful, call read again to make sure that you read everything 
+
+            // if read is successful, call read again to make sure that you read everything
         }
 
         // TODO: Put stuff here
