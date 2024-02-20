@@ -48,7 +48,7 @@
 use core::cell::Cell;
 use core::cmp;
 use core::fmt::Error;
-use kernel::debug
+use kernel::debug;
 
 use kernel::collections::list::{List, ListLink, ListNode};
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
