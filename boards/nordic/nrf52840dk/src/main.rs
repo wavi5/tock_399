@@ -966,42 +966,40 @@ pub unsafe fn main() {
 
 
     // //receive
-    let buf = static_init!([u8; 3], [0; 3]);
-    let tx_buffer = static_init!([u8; 3], [0; 3]);
-    let rx_buffer = static_init!([u8; 3], [0; 3]);
-    let device: &mut UartDevice<'_> =
-        static_init!(UartDevice<'static>, UartDevice::new(uart1_mux, true));
-    device.setup();
-    let test = static_init!(
-        UartCapsule,
-        UartCapsule::new(device, buf, tx_buffer, rx_buffer),
-    );
-
-    debug!("setting receive client");
-    device.set_receive_client(test);
-    // test.receive();
-    loop {
-        debug!("receiving");
-        test.receive();
-    }
-       
-
-    //transmit
-    // static mut numbers: [u8; 10] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-    // let buf = static_init!([u8; 3], [0; 3]);
     // let tx_buffer = static_init!([u8; 3], [0; 3]);
     // let rx_buffer = static_init!([u8; 3], [0; 3]);
-
     // let device: &mut UartDevice<'_> =
     //     static_init!(UartDevice<'static>, UartDevice::new(uart1_mux, true));
     // device.setup();
     // let test = static_init!(
     //     UartCapsule,
-    //     UartCapsule::new(device, buf, tx_buffer, rx_buffer),
+    //     UartCapsule::new(device, tx_buffer, rx_buffer),
     // );
 
-    // device.set_transmit_client(test);
-    // test.send(&mut numbers);
+    // debug!("setting receive client");
+    // device.set_receive_client(test);
+    // test.receive();
+    // loop {
+    //     debug!("receiving");
+    //     test.receive();
+    // }
+       
+
+    //transmit
+    static mut numbers: [u8; 10] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+    let tx_buffer = static_init!([u8; 3], [0; 3]);
+    let rx_buffer = static_init!([u8; 3], [0; 3]);
+
+    let device: &mut UartDevice<'_> =
+        static_init!(UartDevice<'static>, UartDevice::new(uart1_mux, true));
+    device.setup();
+    let test = static_init!(
+        UartCapsule,
+        UartCapsule::new(device, tx_buffer, rx_buffer),
+    );
+
+    device.set_transmit_client(test);
+    test.send(&mut numbers);
 
     // test::virtual_uart_nrf_test::run_virtual_uart_transmit(uart1_mux);
 

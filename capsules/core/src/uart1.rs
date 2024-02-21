@@ -63,7 +63,6 @@ pub const RX_BUF_LEN: usize = 64;
 
 pub struct UartCapsule {
     device: &'static UartDevice<'static>,
-    buffer: TakeCell<'static, [u8]>,
     tx_buffer: TakeCell<'static, [u8]>,
     rx_buffer: TakeCell<'static, [u8]>,
     // tx_in_progress: Cell<bool>,
@@ -75,7 +74,6 @@ pub struct UartCapsule {
 impl UartCapsule {
     pub fn new(
         device: &'static UartDevice,
-        buffer: &'static mut [u8],
         tx_buffer: &'static mut [u8],
         rx_buffer: &'static mut [u8],
         // tx_in_progress: Cell<bool>,
@@ -86,7 +84,6 @@ impl UartCapsule {
         //
         UartCapsule {
             device: device,
-            buffer: TakeCell::new(buffer),
             tx_buffer: TakeCell::new(tx_buffer),
             rx_buffer: TakeCell::new(rx_buffer),
             // tx_in_progress: Cell::new(false),
@@ -120,21 +117,31 @@ impl UartCapsule {
     }
     //
     // UartCapsule.receive()
-    pub fn receive(&self) {
-        debug!("[DEBUG] receive() works!");
+    // TODO
+    // 1) Continuous receiving
+    // 2) In-progress flags
+    pub fn receive(&self) -> Result<(), ErrorCode> {
+        // Base Case 1: If the rx_buffer has something in it,
+        // then we are able to actually receive stuff
+        if self.rx_buffer.is_none() {
+            return Err(ErrorCode::BUSY);
+        }
+
+        // debug!("[DEBUG] receive() works!");
         let buf = self.rx_buffer.take().unwrap();
         let len = buf.len();
         let _ = self.device.receive_buffer(buf, len);
 
-        // self.rx_buffer.map_or(None, |buffer| {
+        // Old stuff: Why does it return closure escape?
+        // self.rx_buffer.map_or(Err(ErrorCode::BUSY), |buffer| {
         //     // debug!("[DEBUG] There's something in the rx_buffer!");
         //     let len = buffer.len();
         //     debug!("{}", len); // new debug
         //     let _ = self.device.receive_buffer(buffer, len);
-        //     buffer
+        //     Ok(())
         // });
 
-        // self.rx_buffer.map_or(0, |buffer| buffer.len());
+        Ok(())
     }
 }
 
@@ -177,7 +184,7 @@ impl uart::ReceiveClient for UartCapsule {
 
         // if read is successful, call read again to make sure that you read everything
 
-        // TODO: Put stuff here
+        let _ = self.receive();
     }
 
     fn received_word(&self, _word: u32, _rval: Result<(), ErrorCode>, _error: uart::Error) {}
