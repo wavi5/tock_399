@@ -93,6 +93,8 @@ impl UartCapsule {
         }
     }
 
+    //
+    // 1) Why are we not using a UartMux?
     // pub fn init(&self) {
     //     let _ = self.device.configure(uart::Parameters {
     //         baud_rate: 115200,
@@ -120,6 +122,7 @@ impl UartCapsule {
     // TODO
     // 1) Continuous receiving
     // 2) In-progress flags
+    // 3) Mismatch buffer lengths
     pub fn receive(&self) -> Result<(), ErrorCode> {
         // Base Case 1: If the rx_buffer has something in it,
         // then we are able to actually receive stuff
@@ -132,7 +135,8 @@ impl UartCapsule {
         let len = buf.len();
         let _ = self.device.receive_buffer(buf, len);
 
-        // Old stuff: Why does it return closure escape?
+        // QUESTION: How do we fix this syntax?
+        // Why does it return closure escape?
         // self.rx_buffer.map_or(Err(ErrorCode::BUSY), |buffer| {
         //     // debug!("[DEBUG] There's something in the rx_buffer!");
         //     let len = buffer.len();
@@ -175,6 +179,9 @@ impl uart::ReceiveClient for UartCapsule {
         // if self.rx_buffer.is_some() {
         //     debug!("BUSY");
         // } else {
+
+        // QUESTION: How do we actually return stuff from the
+        // received_buffer?
         self.rx_buffer.replace(buffer);
         debug!("{:?}", self.rx_buffer.take());
         // self.device
