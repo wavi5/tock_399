@@ -45,6 +45,7 @@
 //! hil::uart::UART::set_receive_client(console_uart, console);
 //! ```
 
+use crate::virtualizers::virtual_uart::UartDevice;
 use core::cell::Cell;
 use core::cmp;
 use core::fmt::Error;
@@ -54,72 +55,90 @@ use kernel::collections::list::{List, ListLink, ListNode};
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::gpio;
 use kernel::hil::uart;
+use kernel::hil::uart::{Receive, Transmit};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
 
 pub const RX_BUF_LEN: usize = 64;
 
-pub struct UartCapsule<'a> {
-    uart: &'a dyn uart::Uart<'a>,
+pub struct UartCapsule {
+    device: &'static UartDevice<'static>,
+    buffer: TakeCell<'static, [u8]>,
     tx_buffer: TakeCell<'static, [u8]>,
     rx_buffer: TakeCell<'static, [u8]>,
-    tx_in_progress: Cell<bool>,
-    rx_in_progress: Cell<bool>,
+    // tx_in_progress: Cell<bool>,
+    // rx_in_progress: Cell<bool>,
     // tx_ready: &'a dyn kernel::hil::gpio::Pin,
     // rx_ready: &'a dyn kernel::hil::gpio::Pin,
 }
 
-impl<'a> UartCapsule<'a> {
+impl UartCapsule {
     pub fn new(
-        uart: &'a dyn uart::Uart<'a>,
+        device: &'static UartDevice,
+        buffer: &'static mut [u8],
         tx_buffer: &'static mut [u8],
         rx_buffer: &'static mut [u8],
-        tx_in_progress: Cell<bool>,
-        rx_in_progress: Cell<bool>,
+        // tx_in_progress: Cell<bool>,
+        // rx_in_progress: Cell<bool>,
         // tx_ready: &'a dyn kernel::hil::gpio::Pin,
         // rx_ready: &'a dyn kernel::hil::gpio::Pin,
-    ) -> UartCapsule<'a> {
+    ) -> UartCapsule {
         //
         UartCapsule {
-            uart: uart,
+            device: device,
+            buffer: TakeCell::new(buffer),
             tx_buffer: TakeCell::new(tx_buffer),
             rx_buffer: TakeCell::new(rx_buffer),
-            tx_in_progress: Cell::new(false),
-            rx_in_progress: Cell::new(false),
+            // tx_in_progress: Cell::new(false),
+            // rx_in_progress: Cell::new(false),
             // tx_ready: tx_ready,
             // rx_ready: rx_ready,
         }
     }
 
-    pub fn init(&self) {
-        let _ = self.uart.configure(uart::Parameters {
-            baud_rate: 115200,
-            width: uart::Width::Eight,
-            stop_bits: uart::StopBits::One,
-            parity: uart::Parity::None,
-            hw_flow_control: false,
-        });
-    }
+    // pub fn init(&self) {
+    //     let _ = self.device.configure(uart::Parameters {
+    //         baud_rate: 115200,
+    //         width: uart::Width::Eight,
+    //         stop_bits: uart::StopBits::One,
+    //         parity: uart::Parity::None,
+    //         hw_flow_control: false,
+    //     });
+    // }
 
-    pub fn send(&self, buffer: u8, len: usize) { 
-        // copy buffer into tx_buffer
-        // let len: Option<usize> = self.tx_buffer.take().map(|buf| {
-        //     buf.len();
-        //     self.uart.transmit_buffer(buf, buf.len());
-        // });
+    //
+    // UartCapsule.send()
+    pub fn send(&self, buffer: &'static mut [u8]) {
+        // debug!("[DEBUG] send() works!");
+        if !(self.tx_buffer.is_none()) {
+            self.tx_buffer.replace(buffer);
+            let buf = self.tx_buffer.take().unwrap();
+            let _len = buf.len();
 
+            let _ = self.device.transmit_buffer(buf, _len);
+        }
     }
+    //
+    // UartCapsule.receive()
     pub fn receive(&self) {
+        debug!("[DEBUG] receive() works!");
         let buf = self.rx_buffer.take().unwrap();
         let len = buf.len();
-        self.uart
-            .receive_buffer(buf, len);
-    }
+        let _ = self.device.receive_buffer(buf, len);
 
-    
+        // self.rx_buffer.map_or(None, |buffer| {
+        //     // debug!("[DEBUG] There's something in the rx_buffer!");
+        //     let len = buffer.len();
+        //     debug!("{}", len); // new debug
+        //     let _ = self.device.receive_buffer(buffer, len);
+        //     buffer
+        // });
+
+        // self.rx_buffer.map_or(0, |buffer| buffer.len());
+    }
 }
 
-impl<'a> uart::TransmitClient for UartCapsule<'a> {
+impl uart::TransmitClient for UartCapsule {
     fn transmitted_buffer(
         &self,
         buffer: &'static mut [u8],
@@ -130,15 +149,15 @@ impl<'a> uart::TransmitClient for UartCapsule<'a> {
         //     // Err(ErrorCode::BUSY);
         // } else {
         self.tx_buffer.replace(buffer);
-            // Ok(());
-            // set_in_progress = false;
+        // Ok(());
+        // set_in_progress = false;
         // set ready for new messages
         // }
     }
     fn transmitted_word(&self, _rval: Result<(), ErrorCode>) {}
 }
 
-impl<'a> uart::ReceiveClient for UartCapsule<'a> {
+impl uart::ReceiveClient for UartCapsule {
     fn received_buffer(
         &self,
         buffer: &'static mut [u8],
@@ -146,18 +165,17 @@ impl<'a> uart::ReceiveClient for UartCapsule<'a> {
         rcode: Result<(), ErrorCode>,
         error: uart::Error,
     ) {
-       
-        if self.rx_buffer.is_some() {
-            debug!("BUSY");
-        } else {
-            self.rx_buffer.replace(buffer);
-            // self.uart
-            //     .receive_buffer(rx_buffer, rx_len);
-            // self.rx_in_progress.take() = true;
-            // set the in progress flag
-            
-            // if read is successful, call read again to make sure that you read everything 
-        }
+        // if self.rx_buffer.is_some() {
+        //     debug!("BUSY");
+        // } else {
+        self.rx_buffer.replace(buffer);
+        debug!("{:?}", self.rx_buffer.take());
+        // self.device
+        //     .receive_buffer(rx_buffer, rx_len);
+        // self.rx_in_progress.take() = true;
+        // set the in progress flag
+
+        // if read is successful, call read again to make sure that you read everything
 
         // TODO: Put stuff here
     }

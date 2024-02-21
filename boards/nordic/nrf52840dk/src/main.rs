@@ -74,6 +74,7 @@
 #![deny(missing_docs)]
 
 use capsules_core::console;
+use capsules_core::uart1::UartCapsule;
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use capsules_core::virtualizers::virtual_uart::{MuxUart, UartDevice};
 use capsules_extra::net::ieee802154::MacAddress;
@@ -81,11 +82,11 @@ use capsules_extra::net::ipv6::ip_utils::IPAddr;
 use kernel::component::Component;
 use kernel::hil::led::LedLow;
 use kernel::hil::time::Counter;
-use kernel::hil::uart;
 use kernel::hil::uart::Configure;
 use kernel::hil::uart::Error;
 use kernel::hil::uart::ReceiveClient;
 use kernel::hil::uart::Transmit;
+use kernel::hil::uart::{self, Receive};
 // use kernel::hil::uart::{Width, Parity, StopBits, Parameters, Configure};
 #[allow(unused_imports)]
 use kernel::hil::usb::Client;
@@ -94,9 +95,9 @@ use kernel::scheduler::round_robin::RoundRobinSched;
 #[allow(unused_imports)]
 use kernel::{capabilities, create_capability, debug, debug_gpio, debug_verbose, static_init};
 use nrf52::peripheral_interrupts::UART0;
+use nrf52::uart::{Uarte, UARTE0_BASE, UARTE1_BASE};
 use nrf52840::gpio::Pin;
 use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
-use nrf52::uart::{Uarte, UARTE0_BASE, UARTE1_BASE};
 use nrf52_components::{self, UartChannel, UartPins};
 
 #[allow(dead_code)]
@@ -383,7 +384,9 @@ pub unsafe fn main() {
         UartChannel::Pins(UartPins::new(UART_RTS, UART_TXD, UART_CTS, UART_RXD))
     };
 
-    let uart1_channel = UartChannel::Pins(UartPins::new(UART_RTS_2, UART_TXD_2, UART_CTS_2, UART_RXD_2));
+    let uart1_channel = UartChannel::Pins(UartPins::new(
+        UART_RTS_2, UART_TXD_2, UART_CTS_2, UART_RXD_2,
+    ));
 
     // Setup space to store the core kernel data structure.
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
@@ -549,7 +552,6 @@ pub unsafe fn main() {
     let uart1_mux = components::console::UartMuxComponent::new(uart1_channel, 115200)
         .finalize(components::uart_mux_component_static!());
 
-    
     // Create the process console, an interactive terminal for managing
     // processes.
     let pconsole = components::process_console::ProcessConsoleComponent::new(
@@ -962,24 +964,51 @@ pub unsafe fn main() {
     let _ = platform.pconsole.start();
     base_peripherals.adc.calibrate();
 
-    // debug!("uart initalization??");
 
-    // Here, we create a second instance of the Uarte struct.
-    // This is okay because we only call this during a panic, and
-    // we will never actually process the interrupts
-    // let uart = Uarte::new(UARTE1_BASE);
-    // let _ = uart.configure(uart::Parameters {
-    //     baud_rate: 115200,
-    //     stop_bits: uart::StopBits::One,
-    //     parity: uart::Parity::None,
-    //     hw_flow_control: false,
-    //     width: uart::Width::Eight,
-    // });
-    // static mut BUF:[u8; 7] = [1, 2, 3, 4, 5, 6, 7];
-    // static mut RBUF: [u8; 7] = [0; 7];
-    
+    // //receive
+    let buf = static_init!([u8; 3], [0; 3]);
+    let tx_buffer = static_init!([u8; 3], [0; 3]);
+    let rx_buffer = static_init!([u8; 3], [0; 3]);
+    let device: &mut UartDevice<'_> =
+        static_init!(UartDevice<'static>, UartDevice::new(uart1_mux, true));
+    device.setup();
+    let test = static_init!(
+        UartCapsule,
+        UartCapsule::new(device, buf, tx_buffer, rx_buffer),
+    );
+
+    debug!("setting receive client");
+    device.set_receive_client(test);
+    // test.receive();
+    loop {
+        debug!("receiving");
+        test.receive();
+    }
+       
+
+    //transmit
+    // static mut numbers: [u8; 10] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+    // let buf = static_init!([u8; 3], [0; 3]);
+    // let tx_buffer = static_init!([u8; 3], [0; 3]);
+    // let rx_buffer = static_init!([u8; 3], [0; 3]);
+
+    // let device: &mut UartDevice<'_> =
+    //     static_init!(UartDevice<'static>, UartDevice::new(uart1_mux, true));
+    // device.setup();
+    // let test = static_init!(
+    //     UartCapsule,
+    //     UartCapsule::new(device, buf, tx_buffer, rx_buffer),
+    // );
+
+    // device.set_transmit_client(test);
+    // test.send(&mut numbers);
+
     // test::virtual_uart_nrf_test::run_virtual_uart_transmit(uart1_mux);
-    
+
+    //HARDCODE TRANSMIT
+    // static mut BUF:[u8; 3] = [1, 2, 3];
+    // static mut RBUF: [u8; 7] = [0; 7];
+
     // let device = static_init!(UartDevice<'static>, UartDevice::new(uart1_mux, true,));
     // device.setup();
     // let uart = Uarte::new(UARTE1_BASE);
