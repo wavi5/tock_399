@@ -47,7 +47,6 @@
 //! let check_result = life_driver.command(1, 42, 0, ProcessId::new(0)); // This should return Ok(())
 //! ```
 
-
 //TODO - Add lifetimes
 //TODO - Custom data structure
 //TODO - Change doc comments

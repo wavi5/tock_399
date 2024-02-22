@@ -10,6 +10,7 @@ pub mod priority;
 pub mod round_robin;
 
 use crate::deferred_call::DeferredCall;
+use crate::external_call::ExternalCall;
 use crate::platform::chip::Chip;
 use crate::process::ProcessId;
 use crate::process::StoppedExecutingReason;
@@ -53,6 +54,11 @@ pub trait Scheduler<C: Chip> {
         while DeferredCall::has_tasks() && !chip.has_pending_interrupts() {
             DeferredCall::service_next_pending();
         }
+        // TODO: handle external syscalls here
+        while ExternalCall::has_tasks() && !chip.has_pending_interrupts() {
+            ExternalCall::service_next_pending();
+        }
+        // Add something here to handle external syscalls
     }
 
     /// Ask the scheduler whether to take a break from executing userspace

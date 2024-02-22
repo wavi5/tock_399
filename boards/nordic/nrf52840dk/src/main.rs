@@ -248,7 +248,7 @@ impl SyscallDriverLookup for Platform {
             // Check if desired driver exists in the external driver list
             debug!("External driver requested: {:X}", driver_num);
             // let res = self.external_driver.get_driver(driver_num as u32);
-            let res = self.external_driver.find_driver(driver_num as u32);
+            let res: u32 = self.external_driver.find_driver(driver_num as u32);
             if res > 0 {
                 // Call driver w/ the driver_num
                 // f(res)
