@@ -10,29 +10,15 @@ use crate::process::{self, Process, ProcessId, ShortID, Task};
 use crate::syscall::{ContextSwitchReason, SyscallReturn};
 use crate::syscall::{Syscall, YieldCall};
 
-use crate::capabilities;
-
 use crate::debug;
-use crate::deferred_call::DeferredCall;
-use crate::errorcode::ErrorCode;
-use crate::grant::{AllowRoSize, AllowRwSize, Grant, UpcallSize};
-use crate::ipc;
-use crate::memop;
 
-use crate::platform::mpu::MPU;
-use crate::platform::platform::ContextSwitchCallback;
+use crate::errorcode::ErrorCode;
 
 use crate::platform::platform::{ProcessFault, SyscallDriverLookup, SyscallFilter};
-use crate::platform::scheduler_timer::SchedulerTimer;
-use crate::platform::watchdog::WatchDog;
 
-use crate::process_checker::{self, CredentialsCheckingPolicy};
-use crate::process_loading::ProcessLoadError;
-use crate::scheduler::{Scheduler, SchedulingDecision};
 use crate::syscall::SyscallDriver;
 
 use crate::syscall_driver::CommandReturn;
-use crate::upcall::{Upcall, UpcallId};
 
 // All 3 of the below global statics are accessed only in this file, and all accesses
 // are via immutable references. Tock is single threaded, so each will only ever be
