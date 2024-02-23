@@ -18,6 +18,7 @@ use crate::config;
 use crate::debug;
 use crate::deferred_call::DeferredCall;
 use crate::errorcode::ErrorCode;
+use crate::external_call::ExternalCall;
 use crate::grant::{AllowRoSize, AllowRwSize, Grant, UpcallSize};
 use crate::ipc;
 use crate::memop;
@@ -399,6 +400,10 @@ impl Kernel {
                     // interrupts and is how code in the chips/ and capsules
                     // crates is able to execute.
                     scheduler.execute_kernel_work(chip);
+                    // TODO: Maybe move calls from scheduler to here instead
+                    while ExternalCall::has_tasks() && !chip.has_pending_interrupts() {
+                        ExternalCall::service_next_pending();
+                    }
                 }
                 false => {
                     // No kernel work ready, so ask scheduler for a process.
