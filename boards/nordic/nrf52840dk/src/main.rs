@@ -965,31 +965,9 @@ pub unsafe fn main() {
     base_peripherals.adc.calibrate();
 
 
-    // //receive
-    // let tx_buffer = static_init!([u8; 3], [0; 3]);
-    // let rx_buffer = static_init!([u8; 3], [0; 3]);
-    // let device: &mut UartDevice<'_> =
-    //     static_init!(UartDevice<'static>, UartDevice::new(uart1_mux, true));
-    // device.setup();
-    // let test = static_init!(
-    //     UartCapsule,
-    //     UartCapsule::new(device, tx_buffer, rx_buffer),
-    // );
-
-    // debug!("setting receive client");
-    // device.set_receive_client(test);
-    // test.receive();
-    // loop {
-    //     debug!("receiving");
-    //     test.receive();
-    // }
-       
-
-    //transmit
-    static mut numbers: [u8; 10] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-    let tx_buffer = static_init!([u8; 3], [0; 3]);
-    let rx_buffer = static_init!([u8; 3], [0; 3]);
-
+    
+    let tx_buffer = static_init!([u8; 7], [0; 7]);
+    let rx_buffer = static_init!([u8; 7], [0; 7]);
     let device: &mut UartDevice<'_> =
         static_init!(UartDevice<'static>, UartDevice::new(uart1_mux, true));
     device.setup();
@@ -998,10 +976,15 @@ pub unsafe fn main() {
         UartCapsule::new(device, tx_buffer, rx_buffer),
     );
 
-    device.set_transmit_client(test);
-    test.send(&mut numbers);
+    // receive
+    debug!("setting receive client");
+    device.set_receive_client(test);
+    test.receive();
 
-    // test::virtual_uart_nrf_test::run_virtual_uart_transmit(uart1_mux);
+    //transmit
+    // static mut numbers: [u8; 10] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+    // device.set_transmit_client(test);
+    // test.send(&mut numbers);
 
     //HARDCODE TRANSMIT
     // static mut BUF:[u8; 3] = [1, 2, 3];

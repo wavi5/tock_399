@@ -75,6 +75,7 @@ impl UartCapsule {
     pub fn new(
         device: &'static UartDevice,
         tx_buffer: &'static mut [u8],
+
         rx_buffer: &'static mut [u8],
         // tx_in_progress: Cell<bool>,
         // rx_in_progress: Cell<bool>,
@@ -107,16 +108,39 @@ impl UartCapsule {
 
     //
     // UartCapsule.send()
-    pub fn send(&self, buffer: &'static mut [u8]) {
+    // buf should not take ownership of, should borrow, buffer
+    pub fn send(&self, buffer: &[u8]) -> Result<(), (ErrorCode, &mut [u8])> {
+        // for byte in buffer copy into buf
         // debug!("[DEBUG] send() works!");
-        if !(self.tx_buffer.is_none()) {
-            self.tx_buffer.replace(buffer);
-            let buf = self.tx_buffer.take().unwrap();
-            let _len = buf.len();
-
-            let _ = self.device.transmit_buffer(buf, _len);
-        }
+        let buf: Result<Result<(), (ErrorCode, &mut [u8])>, ErrorCode> = self
+            .tx_buffer
+            .take()
+            .map_or(Err(ErrorCode::BUSY), |tx_buf| {
+                debug!("HELLO!");
+                for (i, c) in buffer.iter().enumerate() {
+                    if i < tx_buf.len() {
+                        tx_buf[i] = *c;
+                        debug!("{}", tx_buf[i]);
+                    } else {
+                        debug!("buffer too big");
+                        // What to do with the remaining buffer?
+                    }
+                }
+                let len = tx_buf.len();
+                let result = self.device.transmit_buffer(tx_buf, len);
+                Ok(result)
+            });
+        Ok(())
     }
+    // if !(self.tx_buffer.is_none()) {
+    //     // self.tx_buffer.replace(buffer);
+    //     let buf = self.tx_buffer.take().unwrap();
+    //     let len = buf.len();
+
+    //     let _ = self.device.transmit_buffer(buf, len);
+
+    //     //return empty or error
+    // }
     //
     // UartCapsule.receive()
     // TODO
@@ -126,14 +150,23 @@ impl UartCapsule {
     pub fn receive(&self) -> Result<(), ErrorCode> {
         // Base Case 1: If the rx_buffer has something in it,
         // then we are able to actually receive stuff
-        if self.rx_buffer.is_none() {
-            return Err(ErrorCode::BUSY);
-        }
+        // if self.rx_buffer.is_none() {
+        //     return Err(ErrorCode::BUSY);
+        // }
 
-        // debug!("[DEBUG] receive() works!");
-        let buf = self.rx_buffer.take().unwrap();
-        let len = buf.len();
-        let _ = self.device.receive_buffer(buf, len);
+        let receiveResult = self
+            .rx_buffer
+            .take()
+            .map_or(Err(ErrorCode::BUSY), |rx_buf| {
+                let len = rx_buf.len();
+                let result = self.device.receive_buffer(rx_buf, len);
+                Ok(result)
+            });
+
+        // // debug!("[DEBUG] receive() works!");
+        // let buf = self.rx_buffer.take().unwrap();
+        // let len = buf.len();
+        // let _ = self.device.receive_buffer(buf, len);
 
         // QUESTION: How do we fix this syntax?
         // Why does it return closure escape?
@@ -160,6 +193,7 @@ impl uart::TransmitClient for UartCapsule {
         //     // Err(ErrorCode::BUSY);
         // } else {
         self.tx_buffer.replace(buffer);
+        // self.transmit(buffer);
         // Ok(());
         // set_in_progress = false;
         // set ready for new messages
@@ -183,6 +217,7 @@ impl uart::ReceiveClient for UartCapsule {
         // QUESTION: How do we actually return stuff from the
         // received_buffer?
         self.rx_buffer.replace(buffer);
+        //printing takes a long time
         debug!("{:?}", self.rx_buffer.take());
         // self.device
         //     .receive_buffer(rx_buffer, rx_len);
