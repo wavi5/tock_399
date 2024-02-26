@@ -977,14 +977,14 @@ pub unsafe fn main() {
     );
 
     // receive
-    debug!("setting receive client");
-    device.set_receive_client(test);
-    test.receive();
+    // debug!("setting receive client");
+    // device.set_receive_client(test);
+    // test.receive();
 
     //transmit
-    // static mut numbers: [u8; 10] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-    // device.set_transmit_client(test);
-    // test.send(&mut numbers);
+    static mut numbers: [u8; 10] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+    device.set_transmit_client(test);
+    test.send(&mut numbers);
 
     //HARDCODE TRANSMIT
     // static mut BUF:[u8; 3] = [1, 2, 3];

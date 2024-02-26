@@ -125,6 +125,9 @@ impl UartCapsule {
                         debug!("buffer too big");
                         // What to do with the remaining buffer?
                     }
+                    // let copy_len = dest.len().max(len);
+
+                    // dest[0..copy_len].copy_from_slice(&buffer[0..copy_len]);
                 }
                 let len = tx_buf.len();
                 let result = self.device.transmit_buffer(tx_buf, len);
@@ -153,15 +156,20 @@ impl UartCapsule {
         // if self.rx_buffer.is_none() {
         //     return Err(ErrorCode::BUSY);
         // }
-
-        let receiveResult = self
-            .rx_buffer
-            .take()
-            .map_or(Err(ErrorCode::BUSY), |rx_buf| {
-                let len = rx_buf.len();
-                let result = self.device.receive_buffer(rx_buf, len);
-                Ok(result)
-            });
+        self
+        .rx_buffer
+        .take()
+        .map_or(Err(ErrorCode::BUSY), |rx_buf| {
+            let len = rx_buf.len();
+            let result: Result<(), (ErrorCode, &mut [u8])> = self.device.receive_buffer(rx_buf, len);
+            match result {
+                Ok(()) => Ok(()),
+                Err((code, buffer)) => {
+                    self.rx_buffer.replace(buffer);
+                    Err(code)
+                }
+            }
+        })
 
         // // debug!("[DEBUG] receive() works!");
         // let buf = self.rx_buffer.take().unwrap();
@@ -178,7 +186,6 @@ impl UartCapsule {
         //     Ok(())
         // });
 
-        Ok(())
     }
 }
 
@@ -198,6 +205,7 @@ impl uart::TransmitClient for UartCapsule {
         // set_in_progress = false;
         // set ready for new messages
         // }
+        // for pong: call self.receive()
     }
     fn transmitted_word(&self, _rval: Result<(), ErrorCode>) {}
 }
@@ -216,9 +224,11 @@ impl uart::ReceiveClient for UartCapsule {
 
         // QUESTION: How do we actually return stuff from the
         // received_buffer?
+        debug!("{:?}", buffer);
+        // buffer[0] += 1;
+        // self.send(buffer);
         self.rx_buffer.replace(buffer);
         //printing takes a long time
-        debug!("{:?}", self.rx_buffer.take());
         // self.device
         //     .receive_buffer(rx_buffer, rx_len);
         // self.rx_in_progress.take() = true;
@@ -226,7 +236,21 @@ impl uart::ReceiveClient for UartCapsule {
 
         // if read is successful, call read again to make sure that you read everything
 
-        let _ = self.receive();
+        let receive_result = self.receive();
+        // match receive_result {
+        //     Ok(()) => {
+        //         debug!("receive started");
+        //     },
+        //     Err(code) => {
+        //         debug!("{:?}", code);
+        //     }
+        // }
+        if let Err(code) = receive_result {
+            debug!("{:?}", code);
+        } else {
+            debug!("receive started");
+        }
+        // check result/error code
     }
 
     fn received_word(&self, _word: u32, _rval: Result<(), ErrorCode>, _error: uart::Error) {}
