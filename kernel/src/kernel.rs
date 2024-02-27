@@ -400,7 +400,7 @@ impl Kernel {
                     // interrupts and is how code in the chips/ and capsules
                     // crates is able to execute.
                     scheduler.execute_kernel_work(chip);
-                    // TODO: Maybe move calls from scheduler to here instead
+                    // TODO: move calls from scheduler to here instead
                     while ExternalCall::has_tasks() && !chip.has_pending_interrupts() {
                         ExternalCall::service_next_pending();
                     }
