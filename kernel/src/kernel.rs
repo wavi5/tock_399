@@ -402,7 +402,7 @@ impl Kernel {
                     scheduler.execute_kernel_work(chip);
                     // TODO: move calls from scheduler to here instead
                     while ExternalCall::has_tasks() && !chip.has_pending_interrupts() {
-                        ExternalCall::service_next_pending();
+                        ExternalCall::service_next_pending(resources);
                     }
                 }
                 false => {

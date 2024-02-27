@@ -50,54 +50,51 @@ impl ExternalCall {
         unsafe { JOB_PENDING }
     }
 
-    // Function to handle external syscalls and process them
-    pub fn handle_external_syscall<KR: KernelResources<C>, C: Chip>(
-        &self,
-        resources: &KR,
-        process: &dyn process::Process,
-        syscall: Syscall,
-    ) {
-        // Hook for process debugging.
-        process.debug_syscall_called(syscall);
-
-        // Handles only the `Command` syscall
-        if let Syscall::Command {
-            driver_number,
-            subdriver_number,
-            arg0,
-            arg1,
-        } = syscall
-        {
-            resources
-                .syscall_driver_lookup()
-                .with_driver(driver_number, |driver| {
-                    let cres = match driver {
-                        Some(d) => d.command(subdriver_number, arg0, arg1, process.processid()), // TODO: << Figure out what to do about processid here
-                        None => CommandReturn::failure(ErrorCode::NODEVICE),
-                    };
-
-                    let res = SyscallReturn::from_command_return(cres);
-                    process.set_syscall_return_value(res); // TODO: << Figure out what to do about process here
-                });
-        }
-    }
-
     /// Services and clears the next pending `DeferredCall`, returns which index
     /// was serviced
-    pub fn service_next_pending<KR: KernelResources<C>, C: Chip>(
-        &self,
-        resources: &KR,
-        process: &dyn process::Process,
-        syscall: Syscall,
-    ) {
+    pub fn service_next_pending<KR: KernelResources<C>, C: Chip>(resources: &KR) {
         // SAFETY: No accesses to BITMASK/DEFCALLS are via an &mut, and the Tock kernel is
         // single-threaded so all accesses will occur from this thread.
         let job = unsafe { JOB_PENDING };
-        if !job {
+        if job {
             unsafe {
                 JOB_PENDING = false;
             }
-            self.handle_external_syscall::<_, _>(resources, process, syscall);
+
+            // Dummy syscall
+
+            let process = handle_external_syscall::<_, _>(resources, process, syscall);
         }
+    }
+}
+
+// Function to handle external syscalls and process them
+pub fn handle_external_syscall<KR: KernelResources<C>, C: Chip>(
+    resources: &KR,
+    process: &dyn process::Process,
+    syscall: Syscall,
+) {
+    // Hook for process debugging.
+    process.debug_syscall_called(syscall);
+
+    // Handles only the `Command` syscall
+    if let Syscall::Command {
+        driver_number,
+        subdriver_number,
+        arg0,
+        arg1,
+    } = syscall
+    {
+        resources
+            .syscall_driver_lookup()
+            .with_driver(driver_number, |driver| {
+                let cres = match driver {
+                    Some(d) => d.command(subdriver_number, arg0, arg1, process.processid()), // TODO: << Figure out what to do about processid here
+                    None => CommandReturn::failure(ErrorCode::NODEVICE),
+                };
+
+                let res = SyscallReturn::from_command_return(cres);
+                process.set_syscall_return_value(res); // TODO: << Figure out what to do about process here
+            });
     }
 }
