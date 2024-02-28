@@ -236,6 +236,7 @@ pub struct Platform {
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
     external_driver: &'static capsules_core::external_driver::ExternalDriver,
+    external_call: &'static kernel::external_call::ExternalCall,
 }
 
 impl SyscallDriverLookup for Platform {
@@ -340,6 +341,9 @@ impl KernelResources<nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'
     }
     fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
         &()
+    }
+    fn external_call(&self) -> &kernel::external_call::ExternalCall {
+        &self.external_call
     }
 }
 
@@ -919,6 +923,11 @@ pub unsafe fn main() {
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
+    let external_call = kernel::static_init!(
+        kernel::external_call::ExternalCall,
+        kernel::external_call::ExternalCall::new(board_kernel)
+    );
+
     let platform = Platform {
         button,
         ble_radio,
@@ -926,6 +935,7 @@ pub unsafe fn main() {
         pconsole,
         console,
         external_driver,
+        external_call,
         led,
         gpio,
         rng,
@@ -990,6 +1000,9 @@ pub unsafe fn main() {
         debug!("Error loading processes!");
         debug!("{:?}", err);
     });
+
+    // TODO:: Pretend a message has arrived
+    kernel::external_call::ExternalCall::set();
 
     board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
 }

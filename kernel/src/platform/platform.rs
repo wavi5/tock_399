@@ -5,6 +5,7 @@
 //! Interfaces for implementing boards in Tock.
 
 use crate::errorcode;
+use crate::external_call;
 use crate::platform::chip::Chip;
 use crate::platform::scheduler_timer;
 use crate::platform::watchdog;
@@ -82,6 +83,10 @@ pub trait KernelResources<C: Chip> {
     /// Returns a reference to the implementation of the WatchDog on this
     /// platform.
     fn watchdog(&self) -> &Self::WatchDog;
+
+    /// Returns a reference to the implementation of the ExternalCall on this
+    /// platform.
+    fn external_call(&self) -> &external_call::ExternalCall;
 }
 
 /// Configure the system call dispatch mapping.

@@ -402,7 +402,8 @@ impl Kernel {
                     scheduler.execute_kernel_work(chip);
                     // TODO: move calls from scheduler to here instead
                     while ExternalCall::has_tasks() && !chip.has_pending_interrupts() {
-                        ExternalCall::service_next_pending(resources);
+                        resources.external_call().service_next_pending(resources);
+                        // ExternalCall::service_next_pending(resources, self);
                     }
                 }
                 false => {
@@ -856,6 +857,13 @@ impl Kernel {
             | Syscall::ReadWriteAllow { driver_number, .. }
             | Syscall::UserspaceReadableAllow { driver_number, .. }
             | Syscall::ReadOnlyAllow { driver_number, .. } => {
+
+                if resources.external_call().driver_num_is_external(driver_number) {
+                    blah
+                    //resources.external_call().handle_external_syscall(syscall);
+                } else {
+
+
                 resources
                 .syscall_driver_lookup()
                 .with_driver(driver_number, |driver| match syscall {
