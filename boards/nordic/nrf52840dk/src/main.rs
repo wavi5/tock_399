@@ -964,17 +964,12 @@ pub unsafe fn main() {
     let _ = platform.pconsole.start();
     base_peripherals.adc.calibrate();
 
-
-    
     let tx_buffer = static_init!([u8; 7], [0; 7]);
     let rx_buffer = static_init!([u8; 7], [0; 7]);
     let device: &mut UartDevice<'_> =
         static_init!(UartDevice<'static>, UartDevice::new(uart1_mux, true));
     device.setup();
-    let test = static_init!(
-        UartCapsule,
-        UartCapsule::new(device, tx_buffer, rx_buffer),
-    );
+    let test = static_init!(UartCapsule, UartCapsule::new(device, tx_buffer, rx_buffer),);
 
     // receive
     // debug!("setting receive client");
@@ -984,7 +979,7 @@ pub unsafe fn main() {
     //transmit
     static mut numbers: [u8; 10] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
     device.set_transmit_client(test);
-    test.send(&mut numbers);
+    test.start_transmission(&mut numbers);
 
     //HARDCODE TRANSMIT
     // static mut BUF:[u8; 3] = [1, 2, 3];
