@@ -93,19 +93,6 @@ impl UartCapsule {
             // rx_ready: rx_ready,
         }
     }
-
-    //
-    // 1) Why are we not using a UartMux?
-    // pub fn init(&self) {
-    //     let _ = self.device.configure(uart::Parameters {
-    //         baud_rate: 115200,
-    //         width: uart::Width::Eight,
-    //         stop_bits: uart::StopBits::One,
-    //         parity: uart::Parity::None,
-    //         hw_flow_control: false,
-    //     });
-    // }
-
     //
     // UartCapsule.start_transmission()
     // buf should not take ownership of, should borrow, buffer
@@ -119,7 +106,7 @@ impl UartCapsule {
                     // Don't need to account for mismatched data length
                     if i < tx_buf.len() {
                         tx_buf[i] = *c;
-                        debug!("{}", tx_buf[i]);
+                        // debug!("{}", tx_buf[i]);
                     } else {
                         debug!("buffer too big");
                     }
@@ -174,21 +161,6 @@ impl UartCapsule {
                     }
                 }
             })
-
-        // // debug!("[DEBUG] receive() works!");
-        // let buf = self.rx_buffer.take().unwrap();
-        // let len = buf.len();
-        // let _ = self.device.receive_buffer(buf, len);
-
-        // QUESTION: How do we fix this syntax?
-        // Why does it return closure escape?
-        // self.rx_buffer.map_or(Err(ErrorCode::BUSY), |buffer| {
-        //     // debug!("[DEBUG] There's something in the rx_buffer!");
-        //     let len = buffer.len();
-        //     debug!("{}", len); // new debug
-        //     let _ = self.device.receive_buffer(buffer, len);
-        //     Ok(())
-        // });
     }
 }
 
@@ -199,16 +171,15 @@ impl uart::TransmitClient for UartCapsule {
         tx_len: usize,
         rval: Result<(), ErrorCode>,
     ) {
-        // if self.tx_in_progress.get() {
-        //     // Err(ErrorCode::BUSY);
-        // } else {
-        self.tx_buffer.replace(buffer);
-        // self.transmit(buffer);
-        // Ok(());
-        // set_in_progress = false;
-        // set ready for new messages
-        // }
+        self.rx_buffer.replace(buffer);
+
         // for pong: call self.receive()
+        let result = self.receive();
+        // debug!("started receiving :)");
+
+        if let Err(code) = result {
+            debug!("{:?}", code);
+        } 
     }
     fn transmitted_word(&self, _rval: Result<(), ErrorCode>) {}
 }
@@ -221,34 +192,36 @@ impl uart::ReceiveClient for UartCapsule {
         rcode: Result<(), ErrorCode>,
         error: uart::Error,
     ) {
-        debug!("{:?}", buffer); // Print out what was received in transmission
+        debug!("{}", buffer[0]);
+
+        // Print out what was received in transmission
         buffer[0] += 1; // Increment the 0th value of the buffer for pong
                         // self.send(buffer);
-        self.rx_buffer.replace(buffer);
-        //printing takes a long time
-        // self.device
-        //     .receive_buffer(rx_buffer, rx_len);
-        // self.rx_in_progress.take() = true;
-        // set the in progress flag
 
-        // if read is successful, call read again to make sure that you read everything
+        let mut new_buffer: [u8; 20] = [0; 20];
+
+        for (i, c) in buffer.iter().enumerate() {
+            new_buffer[i] = *c;
+        }
+
+        self.tx_buffer.replace(buffer);
+        // self.rx_buffer.replace(new_buffer);
+        // Copy the contents of the original buffer into the new buffer
 
         // let receive_result = self.receive();
-
-        let transmission_result = self.start_transmission(buffer);
 
         // match receive_result {
         //     Ok(()) => {
         //         debug!("receive started");
-        //     },
+        //     }
         //     Err(code) => {
         //         debug!("{:?}", code);
         //     }
         // }
+
+        let transmission_result = self.start_transmission(&new_buffer);
         if let Err(code) = transmission_result {
             debug!("{:?}", code);
-        } else {
-            debug!("restarted transmission");
         }
         // check result/error code
     }
