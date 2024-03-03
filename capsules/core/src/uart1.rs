@@ -87,14 +87,8 @@ impl UartCapsule {
             device: device,
             tx_buffer: TakeCell::new(tx_buffer),
             rx_buffer: TakeCell::new(rx_buffer),
-            // tx_in_progress: Cell::new(false),
-            // rx_in_progress: Cell::new(false),
-            // tx_ready: tx_ready,
-            // rx_ready: rx_ready,
         }
     }
-    //
-    // UartCapsule.start_transmission()
     // buf should not take ownership of, should borrow, buffer
     pub fn start_transmission(&self, buffer: &[u8]) -> Result<(), ErrorCode> {
         // for byte in buffer copy into buf
@@ -171,7 +165,7 @@ impl uart::TransmitClient for UartCapsule {
         tx_len: usize,
         rval: Result<(), ErrorCode>,
     ) {
-        self.rx_buffer.replace(buffer);
+        self.tx_buffer.replace(buffer);
 
         // for pong: call self.receive()
         let result = self.receive();
@@ -179,7 +173,7 @@ impl uart::TransmitClient for UartCapsule {
 
         if let Err(code) = result {
             debug!("{:?}", code);
-        } 
+        }
     }
     fn transmitted_word(&self, _rval: Result<(), ErrorCode>) {}
 }
@@ -204,7 +198,7 @@ impl uart::ReceiveClient for UartCapsule {
             new_buffer[i] = *c;
         }
 
-        self.tx_buffer.replace(buffer);
+        self.rx_buffer.replace(buffer);
         // self.rx_buffer.replace(new_buffer);
         // Copy the contents of the original buffer into the new buffer
 
@@ -219,9 +213,11 @@ impl uart::ReceiveClient for UartCapsule {
         //     }
         // }
 
-        let transmission_result = self.start_transmission(&new_buffer);
+        let transmission_result: Result<(), ErrorCode> = self.start_transmission(&new_buffer);
         if let Err(code) = transmission_result {
             debug!("{:?}", code);
+        } else {
+            debug!("transmit complete");
         }
         // check result/error code
     }

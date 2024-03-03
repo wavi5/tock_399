@@ -972,16 +972,18 @@ pub unsafe fn main() {
     let test = static_init!(UartCapsule, UartCapsule::new(device, tx_buffer, rx_buffer),);
 
     // receive
+    static mut numbers: [u8; 20] = [ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
     debug!("setting receive client");
-    // device.set_receive_client(test);
-    // device.set_transmit_client(test);
-    // test.receive();
+    device.set_receive_client(test);
+    device.set_transmit_client(test);
+    test.receive();
+    test.start_transmission(&mut numbers);
 
     //transmit
-    static mut numbers: [u8; 20] = [ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
-    device.set_transmit_client(test);
-    device.set_receive_client(test);
-    test.start_transmission(&mut numbers);
+    
+    // device.set_transmit_client(test);
+    // device.set_receive_client(test);
+    // test.start_transmission(&mut numbers);
 
     //HARDCODE TRANSMIT
     // static mut BUF:[u8; 3] = [1, 2, 3];
