@@ -857,12 +857,15 @@ impl Kernel {
             | Syscall::ReadWriteAllow { driver_number, .. }
             | Syscall::UserspaceReadableAllow { driver_number, .. }
             | Syscall::ReadOnlyAllow { driver_number, .. } => {
-
-                if resources.external_call().driver_num_is_external(driver_number) {
-                    blah
-                    //resources.external_call().handle_external_syscall(syscall);
-                } else {
-
+                // if resources
+                //     .external_call()
+                //     .driver_num_is_external(driver_number)
+                // {
+                //     blah
+                //     //resources.external_call().handle_external_syscall(syscall);
+                // } else {
+                // }
+                // TODO: HANDLE AS SRC ^^
 
                 resources
                 .syscall_driver_lookup()
