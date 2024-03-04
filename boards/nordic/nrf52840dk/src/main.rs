@@ -237,6 +237,7 @@ pub struct Platform {
     kv_driver: &'static KVDriver,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
+    external_call: &'static kernel::external_call::ExternalCall,
 }
 
 impl SyscallDriverLookup for Platform {
@@ -244,17 +245,17 @@ impl SyscallDriverLookup for Platform {
     where
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
-        if driver_num >> 31 == 1 {
-            debug!("Syscall redirect requested, {:X}", driver_num);
-            if self.sys_redirect.validate_sys(driver_num as usize) {
-                debug!("Syscall found in redirect list, {:X}", driver_num);
-                f(Some(self.sys_redirect))
-            } else {
-                debug!("Syscall not found in redirect list, {:X}", driver_num);
-                f(None)
-            }
-        }
-        else {
+        // if driver_num >> 31 == 1 {
+        //     debug!("Syscall redirect requested, {:X}", driver_num);
+        //     if self.sys_redirect.validate_sys(driver_num as usize) {
+        //         debug!("Syscall found in redirect list, {:X}", driver_num);
+        //         f(Some(self.sys_redirect))
+        //     } else {
+        //         debug!("Syscall not found in redirect list, {:X}", driver_num);
+        //         f(None)
+        //     }
+        // }
+        // else {
             match driver_num {
                 capsules_core::console::DRIVER_NUM => f(Some(self.console)),
                 capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
@@ -277,7 +278,7 @@ impl SyscallDriverLookup for Platform {
                 capsules_extra::kv_driver::DRIVER_NUM => f(Some(self.kv_driver)),
                 _ => f(None),
             }
-        }
+        // }
     }
 }
 
@@ -334,6 +335,9 @@ impl KernelResources<nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'
     }
     fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
         &()
+    }
+    fn external_call(&self) -> &kernel::external_call::ExternalCall {
+        &self.external_call
     }
 }
 
@@ -920,6 +924,11 @@ pub unsafe fn main() {
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
+    let external_call = kernel::static_init!(
+        kernel::external_call::ExternalCall,
+        kernel::external_call::ExternalCall::new(board_kernel)
+    );
+
     let platform = Platform {
         button,
         ble_radio,
@@ -947,6 +956,7 @@ pub unsafe fn main() {
         kv_driver,
         scheduler,
         systick: cortexm4::systick::SysTick::new_with_calibration(64000000),
+        external_call,
     };
 
     let _ = platform.pconsole.start();
@@ -992,6 +1002,9 @@ pub unsafe fn main() {
         debug!("Error loading processes!");
         debug!("{:?}", err);
     });
+
+    // Pretends a message has arrived
+    kernel::external_call::ExternalCall::set();
 
     board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
 }

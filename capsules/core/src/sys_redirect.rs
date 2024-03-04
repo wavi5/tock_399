@@ -10,12 +10,12 @@
 
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::{ErrorCode, ProcessId};
-// use std::collections::HashMap; /// switch to new data structure you have to build (Tock doesn't have std)
+use kernel::debug;
 
 /// Syscall driver number.
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::SysRedirect as usize;
-pub const MAX_DRIVERS: usize = 10;
+pub const MAX_DRIVERS: usize = 2;
 pub const MARY_AGE: usize = 20;
 
 /// Implements a `Driver` interface.
@@ -47,14 +47,21 @@ impl SyscallDriver for SysRedirect {
     /// ### `command_num`
     ///
 
+    // add if statement that checks if the second element of the tuple is not none --> 
+    // if so, call f(Some(whatever_driver)) directly?
+
     fn command(&self, command_num: usize, data: usize, _: usize, _: ProcessId) -> CommandReturn {
         match command_num {
-            0 => CommandReturn::success_u32(MARY_AGE as u32),
+            0 => {
+                debug!("Driver number {:X} got command 0", data);
+                CommandReturn::success_u32(MARY_AGE as u32)
+            },
 
             1 => {
                 if data != MARY_AGE {
                     CommandReturn::failure(ErrorCode::INVAL) /* wrong age */
                 } else {
+                    debug!("Driver number {:X} got command 1", data);
                     CommandReturn::success()
                 }
             },
@@ -82,7 +89,7 @@ impl SyscallDriver for SysRedirect {
 // You will have to make your own mechanism, or trick the kernel into thinking it is an application that wanted a 
 // system call
 
-// This capsule already does intersection, now you need to figure out dispatch
+// This capsule already does interception, now you need to figure out dispatch
 // Learn how the system currently does system calls
 
 // This capsule might turn into part of the kernel instead

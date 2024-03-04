@@ -110,6 +110,7 @@ pub mod component;
 pub mod debug;
 pub mod deferred_call;
 pub mod errorcode;
+pub mod external_call;
 pub mod grant;
 pub mod hil;
 pub mod introspection;

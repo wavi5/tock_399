@@ -18,6 +18,7 @@ use crate::config;
 use crate::debug;
 use crate::deferred_call::DeferredCall;
 use crate::errorcode::ErrorCode;
+use crate::external_call::ExternalCall;
 use crate::grant::{AllowRoSize, AllowRwSize, Grant, UpcallSize};
 use crate::ipc;
 use crate::memop;
@@ -399,6 +400,10 @@ impl Kernel {
                     // interrupts and is how code in the chips/ and capsules
                     // crates is able to execute.
                     scheduler.execute_kernel_work(chip);
+                    // PUT EXECUTION CODE HERE
+                    while ExternalCall::has_tasks() && !chip.has_pending_interrupts() {
+                        resources.external_call().service_pending(resources);
+                    }
                 }
                 false => {
                     // No kernel work ready, so ask scheduler for a process.
@@ -851,6 +856,13 @@ impl Kernel {
             | Syscall::ReadWriteAllow { driver_number, .. }
             | Syscall::UserspaceReadableAllow { driver_number, .. }
             | Syscall::ReadOnlyAllow { driver_number, .. } => {
+
+                // if resources.external_call().driver_num_is_external(driver_number) {
+                //     resources.external_call().set();
+                //     //resources.external_call().handle_external_syscall::<_, _>(resources, resources.external_call().processid, syscall);
+                // }
+                // else {
+    
                 resources
                 .syscall_driver_lookup()
                 .with_driver(driver_number, |driver| match syscall {
@@ -945,11 +957,11 @@ impl Kernel {
                                                         ) {
                                                             (true, AllocResult::NoAllocation) => {
                                                                 debug!("[{:?}] WARN driver #{:x} did not allocate grant",
-                                                                           process.processid(), driver_number);
+                                                                        process.processid(), driver_number);
                                                             }
                                                             (true, AllocResult::SameAllocation) => {
                                                                 debug!("[{:?}] ERROR driver #{:x} allocated wrong grant counts",
-                                                                           process.processid(), driver_number);
+                                                                        process.processid(), driver_number);
                                                             }
                                                             _ => {}
                                                         }
@@ -1081,11 +1093,11 @@ impl Kernel {
                                                         ) {
                                                             (true, AllocResult::NoAllocation) => {
                                                                 debug!("[{:?}] WARN driver #{:x} did not allocate grant",
-                                                                           process.processid(), driver_number);
+                                                                        process.processid(), driver_number);
                                                             }
                                                             (true, AllocResult::SameAllocation) => {
                                                                 debug!("[{:?}] ERROR driver #{:x} allocated wrong grant counts",
-                                                                           process.processid(), driver_number);
+                                                                        process.processid(), driver_number);
                                                             }
                                                             _ => {}
                                                         }
@@ -1277,11 +1289,11 @@ impl Kernel {
                                                         ) {
                                                             (true, AllocResult::NoAllocation) => {
                                                                 debug!("[{:?}] WARN driver #{:x} did not allocate grant",
-                                                                           process.processid(), driver_number);
+                                                                        process.processid(), driver_number);
                                                             }
                                                             (true, AllocResult::SameAllocation) => {
                                                                 debug!("[{:?}] ERROR driver #{:x} allocated wrong grant counts",
-                                                                           process.processid(), driver_number);
+                                                                        process.processid(), driver_number);
                                                             }
                                                             _ => {}
                                                         }
