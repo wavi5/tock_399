@@ -857,17 +857,17 @@ impl Kernel {
             | Syscall::ReadWriteAllow { driver_number, .. }
             | Syscall::UserspaceReadableAllow { driver_number, .. }
             | Syscall::ReadOnlyAllow { driver_number, .. } => {
-                // if resources
-                //     .external_call()
-                //     .driver_num_is_external(driver_number)
-                // {
-                //     blah
-                //     //resources.external_call().handle_external_syscall(syscall);
-                // } else {
-                // }
-                // TODO: HANDLE AS SRC ^^
+                if resources
+                    .external_call()
+                    .driver_num_is_external(driver_number)
+                {
+                    //TODO: Pack into bytes and send
+                    resources.external_call().pack_syscall_and_send(syscall);
+                    //resources.external_call().handle_external_syscall(syscall);
+                } else {
+                    // TODO: HANDLE AS SRC ^^
 
-                resources
+                    resources
                 .syscall_driver_lookup()
                 .with_driver(driver_number, |driver| match syscall {
                     Syscall::Subscribe {
@@ -1355,6 +1355,7 @@ impl Kernel {
                         debug_assert!(false, "Kernel system call handling invariant violated!");
                     },
                 })
+                }
             }
             Syscall::Exit {
                 which,

@@ -1,15 +1,9 @@
-use crate::kernel;
-use crate::utilities::cells::OptionalCell;
-use core::cell::Cell;
-use core::marker::Copy;
-use core::marker::PhantomData;
-
-use crate::config;
 use crate::platform::chip::Chip;
 use crate::platform::platform::KernelResources;
 use crate::process::{self, Process, ProcessId, ShortID, Task};
+use crate::syscall::Syscall;
+
 use crate::syscall::{ContextSwitchReason, SyscallReturn};
-use crate::syscall::{Syscall, YieldCall};
 
 use crate::debug;
 
@@ -59,12 +53,39 @@ impl ExternalCall {
         }
     }
 
+    pub fn driver_num_is_external(&self, driver_num: usize) -> bool {
+        if driver_num >> 31 == 1 {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
     /// Returns true if any deferred calls are waiting to be serviced,
     /// false otherwise.
     pub fn has_tasks() -> bool {
         // SAFETY: No accesses to BITMASK are via an &mut, and the Tock kernel is
         // single-threaded so all accesses will occur from this thread.
         unsafe { JOB_PENDING }
+    }
+
+    // Return an array of u8 that represents the syscall
+    pub fn pack_syscall_and_send(&self, syscall: Syscall) {
+        if let Syscall::Command {
+            driver_number,
+            subdriver_number,
+            arg0,
+            arg1,
+        } = syscall
+        {
+            let mut syscall_bytes = [0; 4];
+            syscall_bytes[0] = (driver_number >> 24) as u8;
+            syscall_bytes[1] = (subdriver_number >> 16) as u8;
+            syscall_bytes[2] = (arg0 >> 8) as u8;
+            syscall_bytes[3] = arg1 as u8;
+
+            // TODO: Send the syscall using Uart
+        }
     }
 
     /// Services and clears the next pending `DeferredCall`, returns which index
@@ -119,7 +140,7 @@ pub fn handle_external_syscall<KR: KernelResources<C>, C: Chip>(
             .syscall_driver_lookup()
             .with_driver(driver_number, |driver| {
                 let cres = match driver {
-                    Some(d) => d.command(subdriver_number, arg0, arg1, processid), // TODO: << instead of process.processid(), we will try using processid
+                    Some(d) => d.command(subdriver_number, arg0, arg1, processid),
                     None => CommandReturn::failure(ErrorCode::NODEVICE),
                 };
 
