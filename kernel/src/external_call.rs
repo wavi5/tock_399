@@ -15,6 +15,9 @@ use crate::syscall::SyscallDriver;
 
 use crate::syscall_driver::CommandReturn;
 
+use crate::hil::uart; // import uart 
+use crate::utilities::cells::{MapCell, TakeCell};
+
 // import the kernel
 use crate::kernel::Kernel;
 
@@ -24,12 +27,21 @@ static mut JOB_PENDING: bool = false;
 pub struct ExternalCall {
     kernel: &'static Kernel,
     processid: ProcessId,
+    
     //TODO:: buffer
+    uart: &'static dyn uart::Transmit<'static>,
+    tx_buffer: TakeCell<'static, [u8]>,
+    rx_buffer: TakeCell<'static, [u8]>,
 }
 
 impl ExternalCall {
     /// Creates a new deferred call with a unique ID.
-    pub fn new(kernel: &'static Kernel) -> Self {
+    pub fn new(
+        kernel: &'static Kernel,
+        uart: &'static dyn uart::Transmit, 
+        tx_buffer: &'static mut [u8],
+        rx_buffer: &'static mut [u8],
+    ) -> Self {
         // SAFETY: No accesses to CTR are via an &mut, and the Tock kernel is
         // single-threaded so all accesses will occur from this thread.
 
@@ -41,6 +53,9 @@ impl ExternalCall {
         ExternalCall {
             kernel: kernel,
             processid: processid,
+            uart: uart,
+            tx_buffer: TakeCell::new(tx_buffer),
+            rx_buffer: TakeCell::new(rx_buffer),
         }
     }
 
