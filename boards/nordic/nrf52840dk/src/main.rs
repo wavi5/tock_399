@@ -111,12 +111,11 @@ const UART_TXD: Pin = Pin::P0_06;
 const UART_CTS: Option<Pin> = Some(Pin::P0_07);
 const UART_RXD: Pin = Pin::P0_08;
 
-// Other UART pins 
+// Other UART pins
 const UART_RTS_2: Option<Pin> = Some(Pin::P1_05);
 const UART_TXD_2: Pin = Pin::P1_06;
 const UART_CTS_2: Option<Pin> = Some(Pin::P1_07);
 const UART_RXD_2: Pin = Pin::P1_08;
-
 
 const SPI_MOSI: Pin = Pin::P0_20;
 const SPI_MISO: Pin = Pin::P0_21;
@@ -541,7 +540,6 @@ pub unsafe fn main() {
         nrf52840::rtc::Rtc
     ));
 
-
     // initialize a new uart1_channel
     let uart1_channel = UartChannel::Pins(UartPins::new(
         UART_RTS_2, UART_TXD_2, UART_CTS_2, UART_RXD_2,
@@ -554,11 +552,10 @@ pub unsafe fn main() {
     )
     .finalize(nrf52_components::uart_channel_component_static!(
         nrf52840::rtc::Rtc
-    )); 
-   
-    let uart1_mux = components::console::UartMuxComponent::new(uart1_channel, 115200)
-        .finalize(components::uart_mux_component_static!()); 
+    ));
 
+    let uart1_mux = components::console::UartMuxComponent::new(uart1_channel, 115200)
+        .finalize(components::uart_mux_component_static!());
 
     // Tool for displaying information about processes.
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
@@ -950,18 +947,17 @@ pub unsafe fn main() {
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
-
     // create tx_buffer + rx_buffer + uartdevice
 
     let tx_buffer = static_init!([u8; 20], [0; 20]);
     let rx_buffer = static_init!([u8; 20], [0; 20]);
     let device = static_init!(UartDevice<'static>, UartDevice::new(uart1_mux, true));
+    device.setup();
 
-    // initialize external_call 
+    // initialize external_call
     let external_call = kernel::static_init!(
         kernel::external_call::ExternalCall,
-        kernel::external_call::ExternalCall::new(board_kernel, device, 
-            tx_buffer, rx_buffer)
+        kernel::external_call::ExternalCall::new(board_kernel, device, tx_buffer, rx_buffer)
     );
 
     let platform = Platform {
@@ -1038,7 +1034,7 @@ pub unsafe fn main() {
     });
 
     // TODO:: Pretend a message has arrived
-    kernel::external_call::ExternalCall::set();
+    // kernel::external_call::ExternalCall::set();
 
     board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
 }
