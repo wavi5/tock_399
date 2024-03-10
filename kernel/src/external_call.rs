@@ -308,7 +308,7 @@ impl uart::ReceiveClient for ExternalCall {
         // buffer[0] += 1; // Increment the 0th value of the buffer for pong
         //                 // self.send(buffer);
 
-        // let mut new_buffer: [u8; 20] = [0; 20];
+        // let mut new_buffer: [u8; 17] = [0; 17];
 
         // for (i, c) in buffer.iter().enumerate() {
         //     new_buffer[i] = *c;
