@@ -82,6 +82,8 @@ use kernel::hil::led::LedLow;
 use kernel::hil::time::Counter;
 #[allow(unused_imports)]
 use kernel::hil::usb::Client;
+use kernel::hil::uart::Receive;
+use kernel::hil::uart::Transmit;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 #[allow(unused_imports)]
@@ -959,6 +961,12 @@ pub unsafe fn main() {
         kernel::external_call::ExternalCall,
         kernel::external_call::ExternalCall::new(board_kernel, device, tx_buffer, rx_buffer)
     );
+
+    device.set_transmit_client(external_call);
+    device.set_receive_client(external_call);
+
+    // external_call.start_transmission();
+    external_call.receive();
 
     let platform = Platform {
         button,

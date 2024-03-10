@@ -61,6 +61,7 @@ impl ExternalCall {
 
     // ExternalCall.start_transmission()
     pub fn start_transmission(&self, buffer: &[u8]) -> Result<(), ErrorCode> {
+        debug!("Started transmission");
         self.tx_buffer
             .take()
             .map_or(Err(ErrorCode::BUSY), |tx_buf| {
@@ -80,7 +81,7 @@ impl ExternalCall {
                 match result {
                     Ok(()) => Ok(()),
                     Err((code, buffer)) => {
-                        self.tx_buffer.replace(buffer);
+                        // self.tx_buffer.replace(buffer);
                         Err(code)
                     }
                 }
@@ -89,20 +90,29 @@ impl ExternalCall {
 
     // ExternalCall.receive(&self)
     pub fn receive(&self) -> Result<(), ErrorCode> {
-        self.rx_buffer
-            .take()
-            .map_or(Err(ErrorCode::BUSY), |rx_buf| {
-                let len = rx_buf.len();
-                let result: Result<(), (ErrorCode, &mut [u8])> =
-                    self.uart.receive_buffer(rx_buf, len);
-                match result {
-                    Ok(()) => Ok(()),
-                    Err((code, buffer)) => {
-                        self.rx_buffer.replace(buffer);
-                        Err(code)
+        debug!("Started reception");
+        let job = unsafe { JOB_PENDING };
+
+        if (job) {
+            debug!("job is occurring right now");
+            Ok(())
+        } else {
+            self.rx_buffer
+                .take()
+                .map_or(Err(ErrorCode::ALREADY), |rx_buf| {
+                    let len = rx_buf.len();
+                    let result: Result<(), (ErrorCode, &mut [u8])> =
+                        self.uart.receive_buffer(rx_buf, len);
+                    match result {
+                        Ok(()) => Ok(()),
+                        Err((code, buffer)) => {
+                            debug!("something went wrong");
+                            // self.rx_buffer.replace(buffer);
+                            Err(code)
+                        }
                     }
-                }
-            })
+                })
+        }
     }
 
     /// Schedule a deferred callback on the client associated with this deferred call
@@ -141,7 +151,7 @@ impl ExternalCall {
         {
             let mut buffer: [u8; 17] = [0; 17];
             buffer[0] = 1; // Set the first byte to 1 to indicate that it is a syscall
-            buffer[1] = (driver_number >> 24) as u8;
+            buffer[1] = (driver_number >> 24) as u8 & 0b01111111;
             buffer[2] = (driver_number >> 16) as u8;
             buffer[3] = (driver_number >> 8) as u8;
             buffer[4] = driver_number as u8;
@@ -159,37 +169,44 @@ impl ExternalCall {
             buffer[16] = arg1 as u8;
 
             //TODO: Send the syscall using Uart
+            debug!("Sent a syscall");
             self.start_transmission(&buffer);
         }
     }
 
     pub fn unpack_bytes(&self) -> Result<Syscall, ErrorCode> {
+        debug!("started unpacking");
         self.rx_buffer
             .take()
-            .map_or(Err(ErrorCode::BUSY), |rx_buf| {
+            .map_or(Err(ErrorCode::INVAL), |rx_buf| {
                 let mut driver_number: usize = 0;
                 for i in 1..5 {
                     driver_number = driver_number << 8;
                     driver_number = driver_number | rx_buf[i] as *const u8 as usize;
                 }
+                debug!("This is the driver_number {}", driver_number);
 
                 let mut subdriver_number: usize = 0;
                 for i in 5..9 {
-                    driver_number = driver_number << 8;
-                    driver_number = driver_number | rx_buf[i] as *const u8 as usize;
+                    subdriver_number = subdriver_number << 8;
+                    subdriver_number = subdriver_number | rx_buf[i] as *const u8 as usize;
                 }
+                debug!("This is the subdriver number {}", subdriver_number);
 
                 let mut arg0: usize = 0;
                 for i in 9..13 {
-                    driver_number = driver_number << 8;
-                    driver_number = driver_number | rx_buf[i] as *const u8 as usize;
+                    arg0 = arg0 << 8;
+                    arg0 = arg0 | rx_buf[i] as *const u8 as usize;
                 }
+
+                debug!("This is the arg0 {}", arg0);
 
                 let mut arg1: usize = 0;
                 for i in 13..17 {
-                    driver_number = driver_number << 8;
-                    driver_number = driver_number | rx_buf[i] as *const u8 as usize;
+                    arg1 = arg1 << 8;
+                    arg1 = arg1 | rx_buf[i] as *const u8 as usize;
                 }
+                debug!("This is arg1 {}", arg1);
 
                 Ok(Syscall::Command {
                     driver_number,
@@ -213,40 +230,46 @@ impl ExternalCall {
 
             let syscall = self.unpack_bytes().unwrap(); // Unwrap the Result twice to get the Syscall value
 
-            handle_external_syscall::<_, _>(resources, self.processid, syscall);
+            self.handle_external_syscall::<_, _>(resources, self.processid, syscall);
         }
     }
-}
+    // Function to handle external syscalls and process them
+    pub fn handle_external_syscall<KR: KernelResources<C>, C: Chip>(
+        &self,
+        resources: &KR,
+        // process: &dyn process::Process,
+        processid: ProcessId,
+        syscall: Syscall,
+    ) {
+        // Hook for process debugging.
+        // process.debug_syscall_called(syscall); // TODO:: << Figure out what to do about process here
 
-// Function to handle external syscalls and process them
-pub fn handle_external_syscall<KR: KernelResources<C>, C: Chip>(
-    resources: &KR,
-    // process: &dyn process::Process,
-    processid: ProcessId,
-    syscall: Syscall,
-) {
-    // Hook for process debugging.
-    // process.debug_syscall_called(syscall); // TODO:: << Figure out what to do about process here
+        // Handles only the `Command` syscall
+        if let Syscall::Command {
+            driver_number,
+            subdriver_number,
+            arg0,
+            arg1,
+        } = syscall
+        {
+            resources
+                .syscall_driver_lookup()
+                .with_driver(driver_number, |driver| {
+                    let cres = match driver {
+                        Some(d) => d.command(subdriver_number, arg0, arg1, processid),
+                        None => CommandReturn::failure(ErrorCode::NODEVICE),
+                    };
 
-    // Handles only the `Command` syscall
-    if let Syscall::Command {
-        driver_number,
-        subdriver_number,
-        arg0,
-        arg1,
-    } = syscall
-    {
-        resources
-            .syscall_driver_lookup()
-            .with_driver(driver_number, |driver| {
-                let cres = match driver {
-                    Some(d) => d.command(subdriver_number, arg0, arg1, processid),
-                    None => CommandReturn::failure(ErrorCode::NODEVICE),
-                };
+                    let res = SyscallReturn::from_command_return(cres);
 
-                let res = SyscallReturn::from_command_return(cres);
-                // process.set_syscall_return_value(res); // TODO: << Figure out what to do about process here
-            });
+                    let mut return_buffer: [u8; 17] = [0; 17];
+                    return_buffer[0] = 2;
+
+                    debug!("Sent a response");
+
+                    self.start_transmission(&return_buffer); // TODO: << Figure out what to do about process here
+                });
+        }
     }
 }
 
@@ -257,15 +280,16 @@ impl uart::TransmitClient for ExternalCall {
         tx_len: usize,
         rval: Result<(), ErrorCode>,
     ) {
+        debug!("Completed transmission");
         self.tx_buffer.replace(buffer);
 
-        // for pong: call self.receive()
+        // // for pong: call self.receive()
+        debug!("Calling reception from tx callback");
         let result = self.receive();
-        // debug!("started receiving :)");
 
-        if let Err(code) = result {
-            debug!("{:?}", code);
-        }
+        // if let Err(code) = result {
+        //     debug!("{:?}", code);
+        // }
     }
     fn transmitted_word(&self, _rval: Result<(), ErrorCode>) {}
 }
@@ -294,15 +318,17 @@ impl uart::ReceiveClient for ExternalCall {
         // - Check to see if the first byte of the rx_buffer is going to be a
         // syscall
 
+        debug!("Completed reception");
         let id = buffer[0];
-
-        if (id == 2) {
-            debug!("{}", id);
-        } else if (id == 1) {
-            self.set();
-        }
+        debug!("{}", id);
 
         self.rx_buffer.replace(buffer);
+
+        if id == 2 {
+            debug!("{}", id);
+        } else if id == 1 {
+            self.set();
+        }
         // self.rx_buffer.replace(new_buffer);
         // Copy the contents of the original buffer into the new buffer
 
@@ -310,7 +336,7 @@ impl uart::ReceiveClient for ExternalCall {
 
         match receive_result {
             Ok(()) => {
-                debug!("receive started");
+                debug!("Reception completed");
             }
             Err(code) => {
                 debug!("{:?}", code);
