@@ -52,8 +52,9 @@ pub trait Scheduler<C: Chip> {
         chip.service_pending_interrupts();
         while DeferredCall::has_tasks() && !chip.has_pending_interrupts() {
             DeferredCall::service_next_pending();
-        }
+      }
         // todo: maybe handle external syscalls here (deprecated?)
+        // Execute work from external driver
     }
 
     /// Ask the scheduler whether to take a break from executing userspace
@@ -61,7 +62,7 @@ pub trait Scheduler<C: Chip> {
     /// implementation, which always prioritizes kernel work, but schedulers
     /// that wish to defer interrupt handling may reimplement it.
     unsafe fn do_kernel_work_now(&self, chip: &C) -> bool {
-        chip.has_pending_interrupts() || DeferredCall::has_tasks()
+        chip.has_pending_interrupts() || DeferredCall::has_tasks() // External driver has work to be done
     }
 
     /// Ask the scheduler whether to continue trying to execute a process.
